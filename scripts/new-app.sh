@@ -119,12 +119,33 @@ shared)
     touch "$ROOT/$NAME/src/.gitkeep"
     touch "$ROOT/$NAME/inc/.gitkeep"
 
+
+        ADD_OCM3=""
+    ask_choice ADD_OCM3 "Will this shared library use libopencm3 headers?" \
+        "yes - add libopencm3 submodule for IntelliSense (headers only, never built)" \
+        "no  - pure C, no libopencm3 dependency"
+    ADD_OCM3="$(echo "$ADD_OCM3" | awk '{print $1}')"
+
+    if [ "$ADD_OCM3" = "yes" ]; then
+        echo "==> Adding libopencm3 submodule (headers only)..."
+        cd "$ROOT"
+        git submodule add \
+            https://github.com/libopencm3/libopencm3.git \
+            "$NAME/submodules/libopencm3"
+        git submodule update --init "$NAME/submodules/libopencm3"
+        echo "v  libopencm3 submodule added to $NAME/"
+    fi
+
     bash "$ROOT/scripts/gen-vscode.sh" --workspace-only
 
     echo ""
     echo "v  Shared library '$NAME' created."
     echo "   src/ -- .c and .h files (headers beside their .c files)"
     echo "   inc/ -- public headers included by consuming apps"
+    if [ "$ADD_OCM3" = "yes" ]; then
+        echo "   submodules/libopencm3/ -- headers for IntelliSense (never built from here)"
+        echo "   Note: do not hardcode MCU family -- it is injected by the app at build time."
+    fi
     echo "   Next: make add-shared  (to link into a C app)"
     ;;
 

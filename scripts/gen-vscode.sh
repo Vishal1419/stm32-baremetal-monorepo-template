@@ -344,6 +344,34 @@ with open(os.path.join(vscode, "launch.json"), "w") as f:
     json.dump({"version": "0.2.0", "configurations": launch_configs}, f, indent=4)
     f.write("\n")
 
+# -- c_cpp_properties.json for shared libraries ------------------------------
+# If a shared library has its own libopencm3 submodule (for IntelliSense only),
+# write a c_cpp_properties.json into its .vscode/ folder.
+# No MCU define is set -- shared code must be family-agnostic.
+for sh in shared_apps:
+    ocm3_inc = os.path.join(root, sh, "submodules", "libopencm3", "include")
+    if not os.path.isdir(ocm3_inc):
+        continue
+    sh_vscode = os.path.join(root, sh, ".vscode")
+    os.makedirs(sh_vscode, exist_ok=True)
+    sh_config = {
+        "name": sh,
+        "includePath": [
+            "${workspaceFolder}/src/**",
+            "${workspaceFolder}/inc",
+            "${workspaceFolder}/submodules/libopencm3/include",
+        ],
+        "defines": [],
+        "compilerPath": arm_gcc,
+        "cStandard": "c99",
+        "cppStandard": "c++17",
+        "intelliSenseMode": "gcc-arm",
+    }
+    with open(os.path.join(sh_vscode, "c_cpp_properties.json"), "w") as f:
+        json.dump({"configurations": [sh_config], "version": 4}, f, indent=4)
+        f.write("\n")
+    print(f"==> Created {sh}/.vscode/c_cpp_properties.json (libopencm3 IntelliSense)")
+
 # -- settings.json -- only create if missing, preserve user's tool paths ------
 settings_path = os.path.join(vscode, "settings.json")
 if not os.path.exists(settings_path):
