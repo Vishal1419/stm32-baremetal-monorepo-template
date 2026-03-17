@@ -11,6 +11,9 @@
 .vscode/launch.json
 .vscode/c_cpp_properties.json
 
+# VSCode configs generated per-app and per-shared-lib
+*/.vscode/
+
 # libopencm3 in-place build artifacts
 **/submodules/*/lib/
 **/submodules/*/doc/
