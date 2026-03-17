@@ -109,7 +109,24 @@ for app in "${C_APPS[@]+"${C_APPS[@]}"}"; do
     else
         svd_path=""
     fi
-    APP_DATA="${APP_DATA}${app}|${board}|${mcu_def}|${openocd_target}|${svd_path}
+    # Read SHARED entries from libs.mk to add shared library include paths
+    shared_paths=""
+    if [ -f "$ROOT/$app/libs.mk" ]; then
+        while IFS= read -r line; do
+            case "$line" in
+                SHARED*=*)
+                    # Extract the path after += or =, e.g. "../shared-comms" -> "shared-comms"
+                    shared_dir="$(echo "$line" | sed 's/.*=[[:space:]]*//' | tr -d ' 	')"
+                    # Strip leading ../
+                    shared_name="$(echo "$shared_dir" | sed 's|^\.\./||')"
+                    if [ -n "$shared_name" ]; then
+                        shared_paths="${shared_paths}:${shared_name}"
+                    fi
+                    ;;
+            esac
+        done < "$ROOT/$app/libs.mk"
+    fi
+    APP_DATA="${APP_DATA}${app}|${board}|${mcu_def}|${openocd_target}|${svd_path}|${mcu_family}|${shared_paths}
 "
 done
 
@@ -158,6 +175,8 @@ for line in app_data_raw.splitlines():
         "mcu_def":        parts[2],
         "openocd_target": parts[3],
         "svd_path":       parts[4] if len(parts) > 4 else "",
+        "mcu_family":     parts[5] if len(parts) > 5 else "",
+        "shared_paths":   [p for p in parts[6].split(":") if p] if len(parts) > 6 else [],
     })
 
 ts_apps     = [l.strip() for l in ts_data_raw.splitlines()     if l.strip()]
@@ -222,24 +241,66 @@ print(f"==> Generating .vscode configs for: {' '.join(a['name'] for a in apps)}"
 print(f"    arm-none-eabi-gcc : {arm_gcc}")
 print(f"    openocd           : {openocd}")
 
-# -- c_cpp_properties.json ----------------------------------------------------
-configs = []
+# -- c_cpp_properties.json (one per app, written into each app's .vscode/) ----
+# In a multi-root workspace each app is its own workspace root.
+# VSCode resolves ${workspaceFolder} to the app directory when editing files
+# inside that root -- so we write a separate c_cpp_properties.json into each
+# app's own .vscode/ folder. Paths are relative to the app directory.
 for app in apps:
-    configs.append({
+    mcu_family_parts = app["mcu_family"].split("/") if app.get("mcu_family") else []
+    family_leaf = mcu_family_parts[-1] if mcu_family_parts else ""
+
+    config = {
+        "name": app["name"],
+        "includePath": [
+            "${workspaceFolder}/src/**",
+            "${workspaceFolder}/submodules/libopencm3/include",
+            f"${{workspaceFolder}}/submodules/libopencm3/include/libopencm3/stm32/{family_leaf}",
+        ] + [
+            f"${{workspaceFolder}}/../{s}/src/**" for s in app["shared_paths"]
+        ] + [
+            f"${{workspaceFolder}}/../{s}/inc" for s in app["shared_paths"]
+        ],
+        "defines": [app["mcu_def"]],
+        "compilerPath": arm_gcc,
+        "compilerArgs": [f"-D{app['mcu_def']}"],
+        "cStandard": "c99",
+        "cppStandard": "c++17",
+        "intelliSenseMode": "gcc-arm",
+    }
+
+    app_vscode = os.path.join(root, app["name"], ".vscode")
+    os.makedirs(app_vscode, exist_ok=True)
+    app_cpp_props = os.path.join(app_vscode, "c_cpp_properties.json")
+    with open(app_cpp_props, "w") as f:
+        json.dump({"configurations": [config], "version": 4}, f, indent=4)
+        f.write("\n")
+
+# Also write combined config at root level for files opened from root workspace
+root_configs = []
+for app in apps:
+    mcu_family_parts = app["mcu_family"].split("/") if app.get("mcu_family") else []
+    family_leaf = mcu_family_parts[-1] if mcu_family_parts else ""
+    root_configs.append({
         "name": app["name"],
         "includePath": [
             f"${{workspaceFolder}}/{app['name']}/src/**",
             f"${{workspaceFolder}}/{app['name']}/submodules/libopencm3/include",
+            f"${{workspaceFolder}}/{app['name']}/submodules/libopencm3/include/libopencm3/stm32/{family_leaf}",
+        ] + [
+            f"${{workspaceFolder}}/{s}/src/**" for s in app["shared_paths"]
+        ] + [
+            f"${{workspaceFolder}}/{s}/inc" for s in app["shared_paths"]
         ],
         "defines": [app["mcu_def"]],
         "compilerPath": arm_gcc,
+        "compilerArgs": [f"-D{app['mcu_def']}"],
         "cStandard": "c99",
         "cppStandard": "c++17",
         "intelliSenseMode": "gcc-arm",
     })
-
 with open(os.path.join(vscode, "c_cpp_properties.json"), "w") as f:
-    json.dump({"configurations": configs, "version": 4}, f, indent=4)
+    json.dump({"configurations": root_configs, "version": 4}, f, indent=4)
     f.write("\n")
 
 # -- tasks.json ---------------------------------------------------------------
