@@ -14,3 +14,5 @@
 # libopencm3 in-place build artifacts
 **/submodules/*/lib/
 **/submodules/*/doc/
+
+.DS_Store
