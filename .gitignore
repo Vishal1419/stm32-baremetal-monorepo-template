@@ -1,0 +1,16 @@
+# C build outputs
+**/build/
+
+# TypeScript outputs
+**/dist/
+**/node_modules/
+
+# VSCode generated configs (extensions.json is committed via explicit git add -f)
+.vscode/settings.json
+.vscode/tasks.json
+.vscode/launch.json
+.vscode/c_cpp_properties.json
+
+# libopencm3 in-place build artifacts
+**/submodules/*/lib/
+**/submodules/*/doc/
