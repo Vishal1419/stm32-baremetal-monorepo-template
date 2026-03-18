@@ -38,23 +38,23 @@ hardware — step by step.
 
 ## Documentation
 
-| Guide | What it covers |
-|-------|---------------|
-| [Getting Started](docs/01-getting-started.md) | Install tools, clone, create first app, build, flash |
-| [Creating Sub-projects](docs/02-creating-projects.md) | C firmware apps, shared libraries, TypeScript tools |
-| [Building and Flashing](docs/03-build-and-flash.md) | Compiling, cleaning, verbose output, flashing hardware |
-| [Managing Boards](docs/04-boards.md) | Adding boards, linker scripts, SVD files, removing boards |
-| [Debugging in VSCode](docs/05-vscode.md) | Breakpoints, live watch, peripheral register view |
-| [Project Structure](docs/06-project-structure.md) | Every file and folder explained |
-| [Command Reference](docs/07-command-reference.md) | Every `make` command in one place |
+| Guide                                                 | What it covers                                            |
+| ----------------------------------------------------- | --------------------------------------------------------- |
+| [Getting Started](docs/01-getting-started.md)         | Install tools, clone, create first app, build, flash      |
+| [Creating Sub-projects](docs/02-creating-projects.md) | C firmware apps, shared libraries, TypeScript tools       |
+| [Building and Flashing](docs/03-build-and-flash.md)   | Compiling, cleaning, verbose output, flashing hardware    |
+| [Managing Boards](docs/04-boards.md)                  | Adding boards, linker scripts, SVD files, removing boards |
+| [Debugging in VSCode](docs/05-vscode.md)              | Breakpoints, live watch, peripheral register view         |
+| [Project Structure](docs/06-project-structure.md)     | Every file and folder explained                           |
+| [Command Reference](docs/07-command-reference.md)     | Every `make` command in one place                         |
 
 ---
 
 ## Quick reference
 
 ```bash
-# Setup
-make init                                       # initialise submodules after cloning
+# Setup (run once after cloning)
+make init                                       # initialise submodules + activate pre-commit hook
 make vscode                                     # generate VSCode configs
 
 # Create
@@ -89,11 +89,40 @@ make clean APP=<appname>
 
 ---
 
+## Staying up to date
+
+This repository was created from the `stm32-baremetal-monorepo-template`. To pull
+improvements from the template into your project:
+
+```bash
+# One-time setup: add the template as an upstream remote
+make add-upstream
+
+# Pull latest template changes (fetch + merge + run tests)
+make upstream-sync
+```
+
+`make upstream-sync` will flag any merge conflicts clearly. Resolve them, run
+`git commit`, then `bash scripts/test.sh` to verify everything still works.
+
+---
+
+## Testing
+
+```bash
+bash scripts/test.sh    # run full test suite manually (100 tests, ~10 seconds)
+```
+
+The pre-commit hook runs tests automatically before every `git commit` — activated
+by `make init`. See [Command Reference](docs/07-command-reference.md#testing) for details.
+
+---
+
 ## Boards included
 
-| Board | MCU | Core | Flash | RAM |
-|-------|-----|------|-------|-----|
-| `nucleo_f767zi` | STM32F767ZI | Cortex-M7 | 2MB | 512KB |
+| Board           | MCU         | Core      | Flash | RAM   |
+| --------------- | ----------- | --------- | ----- | ----- |
+| `nucleo_f767zi` | STM32F767ZI | Cortex-M7 | 2MB   | 512KB |
 | `nucleo_g474re` | STM32G474RE | Cortex-M4 | 512KB | 128KB |
 
 SVD files for live register debugging are included beside each board's `linker.ld`. See [Managing Boards](docs/04-boards.md#svd-files-for-live-debugging) to add one for a new board.

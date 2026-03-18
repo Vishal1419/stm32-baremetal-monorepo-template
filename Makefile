@@ -39,7 +39,8 @@ SHARED_LIBS := $(foreach d,$(wildcard */),\
                 $(if $(wildcard $(d)package.json),,$(d:/=)))),))
 
 .PHONY: all init new-app add-shared change-board \
-        add-board remove-board build clean flash vscode list-apps
+        add-board remove-board build clean flash vscode list-apps \
+        add-upstream upstream-sync
 
 all: build
 
@@ -50,6 +51,51 @@ init:
 	git submodule update --init --recursive
 	git config core.hooksPath .githooks
 	@echo "==> Git hooks configured (.githooks/pre-commit active)"
+
+###############################################################################
+# add-upstream
+###############################################################################
+add-upstream:
+	@if git remote get-url upstream > /dev/null 2>&1; then \
+	    echo "INFO: 'upstream' remote already exists:"; \
+	    git remote get-url upstream; \
+	else \
+	    git remote add upstream https://github.com/Vishal1419/stm32-baremetal-monorepo-template.git; \
+	    echo "v  Upstream remote added:"; \
+	    echo "   https://github.com/Vishal1419/stm32-baremetal-monorepo-template.git"; \
+	    echo "   Run 'make upstream-sync' to pull latest template changes."; \
+	fi
+
+###############################################################################
+# upstream-sync
+###############################################################################
+upstream-sync:
+	@if ! git remote get-url upstream > /dev/null 2>&1; then \
+	    echo ""; \
+	    echo "ERROR: No upstream remote configured."; \
+	    echo "       Run 'make add-upstream' first."; \
+	    echo ""; \
+	    exit 1; \
+	fi
+	@echo "==> Fetching latest changes from upstream template..."
+	@git fetch upstream
+	@echo ""
+	@echo "==> Merging upstream/main into current branch..."
+	@echo "    If conflicts occur, resolve them, then run: git commit"
+	@echo ""
+	@git merge upstream/main --no-edit || ( \
+	    echo ""; \
+	    echo "Merge conflicts detected. Resolve the conflicts in the files listed"; \
+	    echo "above, then stage the resolved files with: git add <file>"; \
+	    echo "Then complete the merge with: git commit"; \
+	    echo ""; \
+	    echo "After merging, run: bash scripts/test.sh"; \
+	    exit 1 \
+	)
+	@echo ""
+	@echo "v  Sync complete. Running tests to verify..."
+	@echo ""
+	@bash scripts/test.sh
 
 ###############################################################################
 # new-app  (handles c / shared / ts -- interactive when called bare)

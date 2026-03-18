@@ -15,9 +15,39 @@ make init
 
 After running, every `git commit` will automatically run the full test suite first.
 If any test fails, the commit is aborted. To skip in an emergency:
+
 ```bash
 git commit --no-verify
 ```
+
+---
+
+## make add-upstream
+
+Adds the template repository as an `upstream` remote. Run once after cloning if
+you want to be able to pull future template improvements. Safe to run multiple
+times — skips silently if upstream is already configured.
+
+```bash
+make add-upstream
+```
+
+---
+
+## make upstream-sync
+
+Fetches and merges the latest changes from the template repository into your
+current branch. Runs the full test suite automatically after a successful merge.
+
+```bash
+make upstream-sync
+```
+
+If merge conflicts occur, the command stops and tells you exactly what to do:
+resolve the conflicting files, `git add` them, then `git commit`. After that,
+run `bash scripts/test.sh` to verify everything still works.
+
+Requires `make add-upstream` to have been run first.
 
 ---
 
