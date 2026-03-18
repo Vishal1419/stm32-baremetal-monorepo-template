@@ -80,6 +80,15 @@ for d in "$ROOT"/*/; do
     fi
 done
 
+# -- Discover board-specific shared libs (src/, .board, no Makefile) ----------
+BS_SHARED_APPS=()
+for d in "$ROOT"/*/; do
+    dname="$(basename "$d")"
+    if [ -d "$d/src" ] && [ -f "$d/.board" ] && [ ! -f "$d/Makefile" ]; then
+        BS_SHARED_APPS+=("$dname")
+    fi
+done
+
 # -- Helper: read a variable from board.mk ------------------------------------
 board_var() {
     local board_mk="$1"
@@ -142,25 +151,36 @@ for sh in "${SHARED_APPS[@]+"${SHARED_APPS[@]}"}"; do
 "
 done
 
+BS_SHARED_DATA=""
+for sh in "${BS_SHARED_APPS[@]+"${BS_SHARED_APPS[@]}"}"; do
+    board="$(cat "$ROOT/$sh/.board")"
+    board_mk="$ROOT/boards/$board/board.mk"
+    mcu_family="$(board_var "$board_mk" MCU_FAMILY)"
+    mcu_def="$(echo "$mcu_family" | tr '[:lower:]' '[:upper:]' | tr -d '/')"
+    BS_SHARED_DATA="${BS_SHARED_DATA}${sh}|${mcu_def}|${mcu_family}
+"
+done
+
 # -- Python generates all JSON (avoids shell JSON formatting bugs) -------------
 python3 - \
     "$ROOT" "$VSCODE" "$PROJECT_NAME" "$WORKSPACE_ONLY" \
-    "$APP_DATA" "$TS_DATA" "$SHARED_DATA" \
+    "$APP_DATA" "$TS_DATA" "$SHARED_DATA" "$BS_SHARED_DATA" \
     "$ARM_GCC" "$ARM_GDB" "$OPENOCD" "$ARM_TOOLCHAIN_DIR" \
 << 'PYEOF'
 import sys, json, os, subprocess
 
-root             = sys.argv[1]
-vscode           = sys.argv[2]
-project_name     = sys.argv[3]
-workspace_only   = sys.argv[4]
-app_data_raw     = sys.argv[5]
-ts_data_raw      = sys.argv[6]
-shared_data_raw  = sys.argv[7]
-arm_gcc          = sys.argv[8]
-arm_gdb          = sys.argv[9]
-openocd          = sys.argv[10]
-arm_toolchain    = sys.argv[11]
+root                = sys.argv[1]
+vscode              = sys.argv[2]
+project_name        = sys.argv[3]
+workspace_only      = sys.argv[4]
+app_data_raw        = sys.argv[5]
+ts_data_raw         = sys.argv[6]
+shared_data_raw     = sys.argv[7]
+bs_shared_data_raw  = sys.argv[8]  if len(sys.argv) > 8  else ""
+arm_gcc             = sys.argv[9]  if len(sys.argv) > 9  else ""
+arm_gdb             = sys.argv[10] if len(sys.argv) > 10 else ""
+openocd             = sys.argv[11] if len(sys.argv) > 11 else ""
+arm_toolchain       = sys.argv[12] if len(sys.argv) > 12 else ""
 
 # Parse app data
 apps = []
@@ -182,6 +202,18 @@ for line in app_data_raw.splitlines():
 ts_apps     = [l.strip() for l in ts_data_raw.splitlines()     if l.strip()]
 shared_apps = [l.strip() for l in shared_data_raw.splitlines() if l.strip()]
 
+bs_shared_apps = []
+for line in bs_shared_data_raw.splitlines():
+    line = line.strip()
+    if not line:
+        continue
+    parts = line.split("|")
+    bs_shared_apps.append({
+        "name":       parts[0],
+        "mcu_def":    parts[1] if len(parts) > 1 else "",
+        "mcu_family": parts[2] if len(parts) > 2 else "",
+    })
+
 workspace_file = os.path.join(root, f"{project_name}.code-workspace")
 
 # -- .code-workspace ----------------------------------------------------------
@@ -191,7 +223,8 @@ workspace_file = os.path.join(root, f"{project_name}.code-workspace")
 all_sub_names = (
     [app["name"] for app in apps] +
     ts_apps +
-    shared_apps
+    shared_apps +
+    [sh["name"] for sh in bs_shared_apps]
 )
 
 # Build files.exclude for the root folder: hide each sub-project folder
@@ -214,6 +247,8 @@ for ts in ts_apps:
     folders.append({"path": ts})
 for sh in shared_apps:
     folders.append({"path": sh, "name": f"{sh} (shared)"})
+for sh in bs_shared_apps:
+    folders.append({"path": sh["name"], "name": f"{sh['name']} (board-shared)"})
 
 workspace = {
     "folders": folders,
@@ -376,6 +411,37 @@ for sh in shared_apps:
         json.dump({"configurations": [sh_config], "version": 4}, f, indent=4)
         f.write("\n")
     print(f"==> Created {sh}/.vscode/c_cpp_properties.json (libopencm3 IntelliSense)")
+
+# -- c_cpp_properties.json for board-specific shared libraries ----------------
+# These have a .board file so they get the correct MCU define and full
+# libopencm3 dispatch headers -- same as a regular app.
+for sh in bs_shared_apps:
+    if not sh["mcu_def"]:
+        continue
+    mcu_family_parts = sh["mcu_family"].split("/") if sh.get("mcu_family") else []
+    family_leaf = mcu_family_parts[-1] if mcu_family_parts else ""
+
+    sh_config = {
+        "name": sh["name"],
+        "includePath": [
+            "${workspaceFolder}/src/**",
+            "${workspaceFolder}/inc",
+            "${workspaceFolder}/submodules/libopencm3/include",
+            f"${{workspaceFolder}}/submodules/libopencm3/include/libopencm3/stm32/{family_leaf}",
+        ],
+        "defines": [sh["mcu_def"]],
+        "compilerPath": arm_gcc,
+        "compilerArgs": [f"-D{sh['mcu_def']}"],
+        "cStandard": "c99",
+        "cppStandard": "c++17",
+        "intelliSenseMode": "gcc-arm",
+    }
+    sh_vscode = os.path.join(root, sh["name"], ".vscode")
+    os.makedirs(sh_vscode, exist_ok=True)
+    with open(os.path.join(sh_vscode, "c_cpp_properties.json"), "w") as f:
+        json.dump({"configurations": [sh_config], "version": 4}, f, indent=4)
+        f.write("\n")
+    print(f"==> Created {sh['name']}/.vscode/c_cpp_properties.json (board: {sh['mcu_def']})")
 
 # -- settings.json -- only create if missing, preserve user's tool paths ------
 settings_path = os.path.join(vscode, "settings.json")

@@ -162,6 +162,22 @@ images: $(BUILD_DIR)/$(BINARY).images
 .PHONY: build-libs
 build-libs:
 	@echo "  Lib paths: $(LIB_LDFLAGS)"
+		@for _S in $(SHARED); do \
+	    if [ -f "$$_S/.board" ]; then \
+	        _shared_board=$$(cat "$$_S/.board"); \
+	        if [ "$$_shared_board" != "$(BOARD_NAME)" ]; then \
+	            echo ""; \
+	            echo "ERROR: Board mismatch with board-specific shared library."; \
+	            echo "  Shared lib: $$_S (board: $$_shared_board)"; \
+	            echo "  This app:   $(BOARD_NAME)"; \
+	            echo ""; \
+	            echo "  Either retarget the app with: make change-board"; \
+	            echo "  Or unlink the shared lib with: make remove-shared"; \
+	            echo ""; \
+	            exit 1; \
+	        fi; \
+	    fi; \
+	done
 	@for _L in $(LIBS); do \
 	    _dir=$$(echo "$$_L"    | cut -d: -f1); \
 	    _name=$$(echo "$$_L"   | cut -d: -f2); \

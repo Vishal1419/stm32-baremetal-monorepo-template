@@ -114,20 +114,31 @@ shared)
     done
     [ -d "$ROOT/$NAME" ] && { echo "ERROR: '$NAME' already exists."; exit 1; }
 
+    # Ask if board-specific
+    BOARD_SPECIFIC=""
+    ask_choice BOARD_SPECIFIC "Is this shared library board-specific?" \
+        "no  - board-agnostic, works with any STM32 (recommended)" \
+        "yes - tied to a specific board (for code shared between apps on the same board)"
+    BOARD_SPECIFIC="$(echo "$BOARD_SPECIFIC" | awk '{print $1}')"
+
     echo "==> Creating shared library: $NAME"
     mkdir -p "$ROOT/$NAME/src" "$ROOT/$NAME/inc"
     touch "$ROOT/$NAME/src/.gitkeep"
     touch "$ROOT/$NAME/inc/.gitkeep"
 
+    if [ "$BOARD_SPECIFIC" = "yes" ]; then
+        # Board-specific shared lib -- has .board, own libopencm3 submodule, no shims
+        BOARDS=()
+        read_array BOARDS list_boards "$ROOT"
+        if [ "${#BOARDS[@]}" -eq 0 ]; then
+            echo "ERROR: No boards found. Run 'make add-board' first."
+            exit 1
+        fi
+        ask_choice BOARD "Select board" "${BOARDS[@]}"
 
-        ADD_OCM3=""
-    ask_choice ADD_OCM3 "Will this shared library use libopencm3 headers?" \
-        "yes - add libopencm3 submodule for IntelliSense (headers only, never built)" \
-        "no  - pure C, no libopencm3 dependency"
-    ADD_OCM3="$(echo "$ADD_OCM3" | awk '{print $1}')"
+        echo "$BOARD" > "$ROOT/$NAME/.board"
 
-    if [ "$ADD_OCM3" = "yes" ]; then
-        echo "==> Adding libopencm3 submodule (headers only)..."
+        echo "==> Adding libopencm3 submodule..."
         cd "$ROOT"
         git submodule add \
             https://github.com/libopencm3/libopencm3.git \
@@ -135,22 +146,51 @@ shared)
         git submodule update --init "$NAME/submodules/libopencm3"
         echo "v  libopencm3 submodule added to $NAME/"
 
-        echo "==> Generating libopencm3 shims..."
-        bash "$ROOT/scripts/gen-shims.sh" "$ROOT/$NAME"
-        echo "v  Shims generated at $NAME/shims/"
-    fi
+        bash "$ROOT/scripts/gen-vscode.sh" --workspace-only
 
-    bash "$ROOT/scripts/gen-vscode.sh" --workspace-only
+        echo ""
+        echo "v  Board-specific shared library '$NAME' created (board: $BOARD)."
+        echo "   src/    -- .c and .h files"
+        echo "   inc/    -- public headers"
+        echo "   .board  -- board pointer, do not change manually"
+        echo "   submodules/libopencm3/ -- for building and IntelliSense"
+        echo "   Note: can only be linked to apps targeting board: $BOARD"
+        echo "   Next: make add-shared  (to link into a C app on $BOARD)"
+    else
+        # Board-agnostic shared lib -- no .board, optional libopencm3 submodule + shims
+        ADD_OCM3=""
+        ask_choice ADD_OCM3 "Will this shared library use libopencm3 headers?" \
+            "yes - add libopencm3 submodule for IntelliSense (headers only, never built)" \
+            "no  - pure C, no libopencm3 dependency"
+        ADD_OCM3="$(echo "$ADD_OCM3" | awk '{print $1}')"
 
-    echo ""
-    echo "v  Shared library '$NAME' created."
-    echo "   src/ -- .c and .h files (headers beside their .c files)"
-    echo "   inc/ -- public headers included by consuming apps"
-    if [ "$ADD_OCM3" = "yes" ]; then
-        echo "   submodules/libopencm3/ -- headers for IntelliSense (never built from here)"
-        echo "   Note: do not hardcode MCU family -- it is injected by the app at build time."
+        if [ "$ADD_OCM3" = "yes" ]; then
+            echo "==> Adding libopencm3 submodule (headers only)..."
+            cd "$ROOT"
+            git submodule add \
+                https://github.com/libopencm3/libopencm3.git \
+                "$NAME/submodules/libopencm3"
+            git submodule update --init "$NAME/submodules/libopencm3"
+            echo "v  libopencm3 submodule added to $NAME/"
+
+            echo "==> Generating libopencm3 shims..."
+            bash "$ROOT/scripts/gen-shims.sh" "$ROOT/$NAME"
+            echo "v  Shims generated at $NAME/shims/"
+        fi
+
+        bash "$ROOT/scripts/gen-vscode.sh" --workspace-only
+
+        echo ""
+        echo "v  Shared library '$NAME' created."
+        echo "   src/ -- .c and .h files (headers beside their .c files)"
+        echo "   inc/ -- public headers included by consuming apps"
+        if [ "$ADD_OCM3" = "yes" ]; then
+            echo "   submodules/libopencm3/ -- headers for IntelliSense (never built from here)"
+            echo "   shims/ -- libopencm3 dispatch shims (committed to git)"
+            echo "   Note: do not hardcode MCU family -- injected by app at build time."
+        fi
+        echo "   Next: make add-shared  (to link into a C app)"
     fi
-    echo "   Next: make add-shared  (to link into a C app)"
     ;;
 
 # ── TypeScript / Node app ───────────────────────────────────────────────────

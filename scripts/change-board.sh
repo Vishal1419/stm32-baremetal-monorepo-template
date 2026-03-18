@@ -49,6 +49,35 @@ if [ "$CURRENT_BOARD" = "$BOARD" ]; then
     exit 0
 fi
 
+# Check if any board-specific shared libs linked to this app would mismatch
+LIBS_MK="$ROOT/$APP/libs.mk"
+if [ -f "$LIBS_MK" ]; then
+    while IFS= read -r line; do
+        case "$line" in
+            SHARED*=*)
+                shared_dir="$(echo "$line" | sed 's/.*=[[:space:]]*//' | tr -d ' \t')"
+                shared_name="$(echo "$shared_dir" | sed 's|^\.\./||')"
+                shared_board_file="$ROOT/$shared_name/.board"
+                if [ -f "$shared_board_file" ]; then
+                    shared_board="$(cat "$shared_board_file")"
+                    if [ "$shared_board" != "$BOARD" ]; then
+                        echo ""
+                        echo "ERROR: Board mismatch with linked shared library."
+                        echo "  '$shared_name' is board-specific: $shared_board"
+                        echo "  Requested new board:             $BOARD"
+                        echo ""
+                        echo "  Unlink '$shared_name' first with:"
+                        echo "    make remove-shared APP=$APP SHARED=$shared_name"
+                        echo "  Or choose a board that matches: $shared_board"
+                        echo ""
+                        exit 1
+                    fi
+                fi
+                ;;
+        esac
+    done < "$LIBS_MK"
+fi
+
 echo "==> Changing board for '$APP': $CURRENT_BOARD -> $BOARD"
 
 echo "==> Cleaning stale build artefacts..."

@@ -21,8 +21,14 @@
 ###############################################################################
 
 # -- Discovery ----------------------------------------------------------------
-# C apps: folders with a .board file
-C_APPS := $(foreach d,$(wildcard */),$(if $(wildcard $(d).board),$(d:/=),))
+# C apps: folders with a .board file AND a Makefile
+# (board-specific shared libs have .board but no Makefile -- excluded here)
+C_APPS := $(foreach d,$(wildcard */),$(if $(and $(wildcard $(d).board),$(wildcard $(d)Makefile)),$(d:/=),))
+
+# Board-specific shared libs: folders with .board, src/, but no Makefile
+BS_SHARED_LIBS := $(foreach d,$(wildcard */),\
+    $(if $(and $(wildcard $(d).board),$(wildcard $(d)src)),\
+        $(if $(wildcard $(d)Makefile),,$(d:/=)),))
 
 # Shared libs: folders with src/, no .board, no package.json, not reserved
 _RESERVED := boards scripts .vscode
@@ -188,11 +194,21 @@ list-apps:
 	    done; \
 	fi
 	@echo ""
-	@echo "-- Shared Libraries ------------"
+		@echo "-- Shared Libraries ------------"
 	@if [ -z "$(SHARED_LIBS)" ]; then \
 	    echo "  (none)"; \
 	else \
 	    for lib in $(SHARED_LIBS); do echo "  $$lib"; done; \
+	fi
+	@echo ""
+	@echo "-- Board-specific Shared Libs --"
+	@if [ -z "$(BS_SHARED_LIBS)" ]; then \
+	    echo "  (none)"; \
+	else \
+	    for lib in $(BS_SHARED_LIBS); do \
+	        board=$$(cat $$lib/.board 2>/dev/null || echo "unknown"); \
+	        echo "  $$lib  ->  $$board"; \
+	    done; \
 	fi
 	@echo ""
 	@echo "-- Available Boards ------------"

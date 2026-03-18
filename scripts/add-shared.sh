@@ -42,6 +42,25 @@ if [ ! -d "$ROOT/$SHARED" ]; then
     exit 1
 fi
 
+# Board mismatch check -- board-specific shared libs can only link to matching apps
+if [ -f "$ROOT/$SHARED/.board" ]; then
+    SHARED_BOARD="$(cat "$ROOT/$SHARED/.board")"
+    APP_BOARD="$(cat "$ROOT/$APP/.board")"
+    if [ "$SHARED_BOARD" != "$APP_BOARD" ]; then
+        echo ""
+        echo "ERROR: Board mismatch."
+        echo "  '$SHARED' is board-specific: $SHARED_BOARD"
+        echo "  '$APP' targets:              $APP_BOARD"
+        echo ""
+        echo "  Board-specific shared libraries can only be linked to apps"
+        echo "  targeting the same board."
+        echo "  Use 'make change-board APP=$APP BOARD=$SHARED_BOARD' to retarget"
+        echo "  the app, or choose a board-agnostic shared library instead."
+        echo ""
+        exit 1
+    fi
+fi
+
 LIBS_MK="$ROOT/$APP/libs.mk"
 MARKER="SHARED += ../$SHARED"
 
