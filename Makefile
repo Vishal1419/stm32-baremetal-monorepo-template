@@ -72,6 +72,12 @@ init:
 	    } > README.md; \
 	    echo "v  README.md created. Edit it to describe your project."; \
 	fi
+	@if [ -d .github/docs ]; then \
+	    echo ""; \
+	    echo "==> Removing template docs (available online at GitHub)..."; \
+	    rm -rf .github/docs; \
+	    echo "v  Template docs removed."; \
+	fi
 	git config core.hooksPath .githooks
 	@echo "==> Git hooks configured (.githooks/pre-commit active)"
 
@@ -117,6 +123,11 @@ upstream-sync:
 	)
 	@echo ""
 	@echo "v  Sync complete. Running tests to verify..."
+	@echo ""
+		@if [ -d .github/docs ]; then \
+	    echo "==> Removing template docs (available online at GitHub)..."; \
+	    rm -rf .github/docs; \
+	fi
 	@echo ""
 	@bash scripts/test.sh
 
