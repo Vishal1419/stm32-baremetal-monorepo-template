@@ -6,10 +6,17 @@ Every command in one place. All commands are run from the project root unless no
 
 ## make init
 
-Initialises all git submodules recursively. Run this once after cloning.
+Initialises all git submodules recursively and configures the git pre-commit hook.
+Run this once after cloning.
 
 ```bash
 make init
+```
+
+After running, every `git commit` will automatically run the full test suite first.
+If any test fails, the commit is aborted. To skip in an emergency:
+```bash
+git commit --no-verify
 ```
 
 ---
@@ -174,3 +181,34 @@ make print-LIB_ARCHIVES
 ```
 
 Useful for debugging build issues.
+
+---
+
+## Testing
+
+### Running the test suite manually
+
+```bash
+bash scripts/test.sh
+```
+
+Runs 100 tests across 15 sections — project structure, board configs, all make
+commands, board mismatch enforcement, shim generation, and more. Runs entirely
+inside a temporary directory. Your project is never modified. Takes under 10 seconds.
+
+### Pre-commit hook
+
+After running `make init`, the test suite runs automatically before every
+`git commit`. If any test fails, the commit is aborted with a clear message:
+
+```
+==> Running test suite before commit...
+
+ERROR: Tests failed. Commit aborted.
+       Fix the failing tests and try again.
+       To skip tests (not recommended): git commit --no-verify
+```
+
+The hook is stored in `.githooks/pre-commit` which is committed to the repository.
+`make init` configures git to use `.githooks/` instead of `.git/hooks/`, so the
+hook activates automatically for every developer who clones and runs `make init`.

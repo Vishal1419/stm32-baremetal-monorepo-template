@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# pre-commit -- run test suite before every commit
+
+ROOT="$(git rev-parse --show-toplevel)"
+
+echo ""
+echo "==> Running test suite before commit..."
+echo ""
+
+if bash "$ROOT/scripts/test.sh"; then
+    echo ""
+    echo "==> Tests passed. Proceeding with commit."
+    echo ""
+    exit 0
+else
+    echo ""
+    echo "ERROR: Tests failed. Commit aborted."
+    echo "       Fix the failing tests and try again."
+    echo "       To skip tests (not recommended): git commit --no-verify"
+    echo ""
+    exit 1
+fi

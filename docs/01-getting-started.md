@@ -41,18 +41,15 @@ sudo apt install gcc-arm-none-eabi openocd
    Extract the archive and add the `bin/` folder to your PATH.
 
 3. **Make** — install via [Chocolatey](https://chocolatey.org/):
-
    ```
    choco install make
    ```
-
    Or install [Git for Windows](https://gitforwindows.org/) which includes
    `Git Bash` — run all `make` commands from Git Bash.
 
 4. **Git** — [git-scm.com/download/win](https://git-scm.com/download/win)
 
 Verify everything is working by opening a terminal (or Git Bash on Windows) and running:
-
 ```bash
 arm-none-eabi-gcc --version
 openocd --version
@@ -71,13 +68,28 @@ cd stm32-baremetal-monorepo-template
 
 ---
 
-## Step 2 — Check if your board is already supported
+## Step 2 — Initialise
+
+```bash
+make init
+```
+
+This does three things:
+- Initialises all git submodules recursively
+- Configures the git hooks path so the pre-commit test suite runs automatically
+  before every `git commit`
+
+Run this once after cloning. It is safe to run again at any time.
+
+---
+
+## Step 3 — Check if your board is already supported
 
 ```bash
 make list-apps
 ```
 
-Look at the **Available Boards** section. If your board is listed, move to next step.
+Look at the **Available Boards** section. If your board is listed, move to Step 5.
 If not, add it now:
 
 ```bash
@@ -91,7 +103,7 @@ for what to fill in for each field, and what to do after the board is created
 
 ---
 
-## Step 3 — Create your first firmware app
+## Step 4 — Create your first firmware app
 
 ```bash
 make new-app
@@ -103,7 +115,7 @@ and creates a starter `src/main.c`.
 
 ---
 
-## Step 4 — Set up VSCode
+## Step 5 — Set up VSCode
 
 ```bash
 make vscode
@@ -114,7 +126,6 @@ IntelliSense, build tasks, and debug launch configurations. Run this command
 again whenever you add a new app or change a board.
 
 Open the workspace:
-
 ```
 File → Open Workspace from File → stm32-baremetal-monorepo-template.code-workspace
 ```
@@ -123,7 +134,7 @@ Install the recommended extensions when prompted.
 
 ---
 
-## Step 5 — Write your firmware
+## Step 6 — Write your firmware
 
 Open `<appname>/src/main.c` in VSCode. This is your entry point. IntelliSense
 will offer completions for all libopencm3 functions. Start writing:
@@ -147,7 +158,7 @@ int main(void)
 
 ---
 
-## Step 6 — Build
+## Step 7 — Build
 
 ```bash
 make build APP=<appname>
@@ -158,7 +169,7 @@ source. Every build after that is fast — only changed files are recompiled.
 
 ---
 
-## Step 7 — Flash or debug
+## Step 8 — Flash or debug
 
 Connect your board via USB, then either flash from the command line:
 

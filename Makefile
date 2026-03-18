@@ -48,6 +48,8 @@ all: build
 ###############################################################################
 init:
 	git submodule update --init --recursive
+	git config core.hooksPath .githooks
+	@echo "==> Git hooks configured (.githooks/pre-commit active)"
 
 ###############################################################################
 # new-app  (handles c / shared / ts -- interactive when called bare)

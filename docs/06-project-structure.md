@@ -40,6 +40,9 @@ stm32-baremetal-monorepo-template/
 │       ├── app.Makefile            ← template copied into every new C app
 │       └── libs.mk                 ← template copied into every new C app
 │
+├── .githooks/
+│   └── pre-commit                  ← test suite runs before every git commit
+│
 ├── .vscode/
 │   └── extensions.json             ← committed; the rest is gitignored
 │
@@ -144,6 +147,7 @@ You do not edit `libs.mk` directly — `make add-shared` manages it for you.
 | Path | Committed |
 |------|-----------|
 | `Makefile` | Yes |
+| `.githooks/` | Yes |
 | `boards/` | Yes |
 | `scripts/` | Yes |
 | `README.md`, `docs/` | Yes |

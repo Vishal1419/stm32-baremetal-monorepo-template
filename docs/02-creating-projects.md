@@ -26,7 +26,6 @@ make new-app
 ```
 
 Choose `c` when asked for the type. You will then be asked for:
-
 - A name (e.g. `motor-ctrl`, `sensor-node`, `gateway`)
 - Which board to target (pick from the numbered list)
 - Whether to link a shared library (optional — press Enter to skip)
@@ -38,7 +37,6 @@ make new-app TYPE=c APP=<appname> BOARD=<boardname>
 ```
 
 Or with a shared library already linked:
-
 ```bash
 make new-app TYPE=c APP=<appname> BOARD=<boardname> SHARED=<sharedname>
 ```
@@ -126,14 +124,13 @@ two questions:
   IntelliSense with the correct MCU define. Cannot be linked to apps targeting a
   different board.
 
-**2. Will this shared library use libopencm3 headers?** _(board-agnostic only)_
+**2. Will this shared library use libopencm3 headers?** *(board-agnostic only)*
 
 - **Yes** — adds libopencm3 as a submodule for IntelliSense, and generates shim headers
   so you can write `#include <libopencm3/stm32/i2c.h>` without any MCU define.
 - **No** — pure C, no libopencm3 dependency at all.
 
 Or directly:
-
 ```bash
 make new-app TYPE=shared NAME=<sharedname>
 ```
@@ -275,7 +272,6 @@ make new-app
 Choose `ts` when asked for the type, then give it a name.
 
 Or directly:
-
 ```bash
 make new-app TYPE=ts APP=<appname>
 ```
@@ -310,7 +306,6 @@ make change-board
 ```
 
 Or directly:
-
 ```bash
 make change-board APP=<appname> BOARD=<boardname>
 ```
