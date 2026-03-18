@@ -123,11 +123,44 @@ make new-app TYPE=shared NAME=<sharedname>
 ```
 <sharedname>/
 ├── src/              — .c files and their companion .h files
-└── inc/              — headers that are truly common with no corresponding .c file
+├── inc/              — headers that are truly common with no corresponding .c file
+└── submodules/       — only present if you chose to add libopencm3 during creation
+    └── libopencm3/   — headers only, never built from here
 ```
 
 There is no Makefile here. That is intentional. The sources compile inside the app's
 build, not independently.
+
+### Using libopencm3 in shared code
+
+When creating a shared library, you are asked whether it will use libopencm3 headers.
+If you answer yes, two things are set up automatically:
+
+1. **libopencm3 submodule** — added at `<sharedname>/submodules/libopencm3/` for
+   IntelliSense. Never built from shared — compilation always happens inside the app's
+   build where the correct MCU family define is injected.
+
+2. **Shim headers** — generated at `<sharedname>/shims/libopencm3/stm32/`. These
+   intercept `#include <libopencm3/stm32/i2c.h>` and redirect to the family-agnostic
+   common headers (e.g. `i2c_common_v2.h`) when no MCU define is present.
+
+This means your shared code writes includes exactly as it would in an app:
+
+```c
+#include <libopencm3/stm32/i2c.h>
+#include <libopencm3/stm32/rcc.h>
+```
+
+IntelliSense resolves full signatures. The build is always correct. No MCU define
+needed anywhere in shared code.
+
+**Version control:** shim files are committed to git. They are the single place
+where common header versions are pinned. If libopencm3 releases `i2c_common_v3`,
+update one line in `shims/libopencm3/stm32/i2c.h` and all shared files pick up
+the change automatically.
+
+**One rule:** shared code must not assume a specific MCU family. Pass peripheral
+base addresses (`I2C1`, `I2C2`) as parameters — never hardcode them.
 
 ### Structuring shared code
 

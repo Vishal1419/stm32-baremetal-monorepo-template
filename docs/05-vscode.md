@@ -92,7 +92,7 @@ Both template boards (`nucleo_f767zi` and `nucleo_g474re`) have their SVD files 
 | File | Purpose | Committed to git? |
 |------|---------|-----------|
 | `stm32-baremetal-monorepo-template.code-workspace` | Multi-root workspace | Yes |
-| `.vscode/c_cpp_properties.json` | IntelliSense per app | No |
+| `<appname>/.vscode/c_cpp_properties.json` | IntelliSense for that app | No |
 | `.vscode/tasks.json` | Build and clean tasks per app | No |
 | `.vscode/launch.json` | Debug configurations per app | No |
 | `.vscode/settings.json` | Machine-specific tool paths | No |

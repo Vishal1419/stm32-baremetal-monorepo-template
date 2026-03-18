@@ -55,7 +55,14 @@ stm32-baremetal-monorepo-template/
 │
 ├── <sharedname>/                   ← a shared C library (created by make new-app)
 │   ├── src/                        ← .c files and internal .h files
-│   └── inc/                        ← headers with no corresponding .c file
+│   ├── inc/                        ← headers with no corresponding .c file
+│   ├── shims/                      ← libopencm3 shim headers (committed to git)
+│   │   └── libopencm3/stm32/
+│   │       ├── i2c.h               ← redirects to i2c_common_v2.h
+│   │       ├── rcc.h               ← redirects to rcc_common_all.h
+│   │       └── ...                 ← one shim per peripheral used
+│   └── submodules/                 ← only present if shared uses libopencm3
+│       └── libopencm3/             ← headers only, never built from here
 │
 └── <tsappname>/                    ← a TypeScript app (created by make new-app)
     ├── package.json
@@ -146,7 +153,7 @@ You do not edit `libs.mk` directly — `make add-shared` manages it for you.
 | `.vscode/settings.json` | No — machine-specific |
 | `.vscode/tasks.json` | No — generated |
 | `.vscode/launch.json` | No — generated |
-| `.vscode/c_cpp_properties.json` | No — generated |
+| `<appname>/.vscode/c_cpp_properties.json` | No — generated per app |
 | `*/build/` | No — compiled output |
 | `*/submodules/*/lib/` | No — compiled library output |
 | `*/node_modules/` | No |

@@ -134,6 +134,10 @@ shared)
             "$NAME/submodules/libopencm3"
         git submodule update --init "$NAME/submodules/libopencm3"
         echo "v  libopencm3 submodule added to $NAME/"
+
+        echo "==> Generating libopencm3 shims..."
+        bash "$ROOT/scripts/gen-shims.sh" "$ROOT/$NAME"
+        echo "v  Shims generated at $NAME/shims/"
     fi
 
     bash "$ROOT/scripts/gen-vscode.sh" --workspace-only

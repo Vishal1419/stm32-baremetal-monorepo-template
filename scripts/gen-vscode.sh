@@ -354,13 +354,18 @@ for sh in shared_apps:
         continue
     sh_vscode = os.path.join(root, sh, ".vscode")
     os.makedirs(sh_vscode, exist_ok=True)
+
+    # shims/ must come before libopencm3/include so shim headers
+    # intercept #include <libopencm3/stm32/i2c.h> etc.
+    sh_include_path = ["${workspaceFolder}/src/**", "${workspaceFolder}/inc"]
+    shims_dir = os.path.join(root, sh, "shims")
+    if os.path.isdir(shims_dir):
+        sh_include_path.append("${workspaceFolder}/shims")
+    sh_include_path.append("${workspaceFolder}/submodules/libopencm3/include")
+
     sh_config = {
         "name": sh,
-        "includePath": [
-            "${workspaceFolder}/src/**",
-            "${workspaceFolder}/inc",
-            "${workspaceFolder}/submodules/libopencm3/include",
-        ],
+        "includePath": sh_include_path,
         "defines": [],
         "compilerPath": arm_gcc,
         "cStandard": "c99",
