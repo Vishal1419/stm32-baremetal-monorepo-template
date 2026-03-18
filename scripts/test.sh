@@ -146,13 +146,20 @@ assert_file "boards/nucleo_g474re/board.mk"    "nucleo_g474re board.mk exists"
 assert_file "boards/nucleo_g474re/linker.ld"   "nucleo_g474re linker.ld exists"
 assert_file ".vscode/extensions.json"          ".vscode/extensions.json exists"
 assert_file ".gitignore"                       ".gitignore exists"
-assert_file ".github/README.md"                ".github/README.md exists"
-assert_dir  ".github/docs"                     ".github/docs/ directory exists"
 
-for doc in 01-getting-started 02-creating-projects 03-build-and-flash \
-           04-boards 05-vscode 06-project-structure 07-command-reference; do
-    assert_file ".github/docs/${doc}.md" ".github/docs/${doc}.md exists"
-done
+# Template docs -- only verified on the template repo itself.
+# Cloned projects may replace or delete these freely.
+if ! git -C "$TEMPLATE_ROOT" remote get-url upstream > /dev/null 2>&1; then
+    assert_file ".github/README.md"           ".github/README.md exists"
+    assert_dir  ".github/docs"                ".github/docs/ directory exists"
+    for doc in 01-getting-started 02-creating-projects 03-build-and-flash \
+               04-boards 05-vscode 06-project-structure 07-command-reference; do
+        assert_file ".github/docs/${doc}.md" ".github/docs/${doc}.md exists"
+    done
+else
+    skip ".github/README.md (cloned repo -- template docs not required)"
+    skip ".github/docs/ (cloned repo -- template docs not required)"
+fi
 
 # ── Section 2: Board configs ──────────────────────────────────────────────────
 section "Board configuration"
