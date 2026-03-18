@@ -15,7 +15,6 @@ make init
 
 After running, every `git commit` will automatically run the full test suite first.
 If any test fails, the commit is aborted. To skip in an emergency:
-
 ```bash
 git commit --no-verify
 ```

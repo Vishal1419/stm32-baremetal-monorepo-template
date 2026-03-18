@@ -146,12 +146,12 @@ assert_file "boards/nucleo_g474re/board.mk"    "nucleo_g474re board.mk exists"
 assert_file "boards/nucleo_g474re/linker.ld"   "nucleo_g474re linker.ld exists"
 assert_file ".vscode/extensions.json"          ".vscode/extensions.json exists"
 assert_file ".gitignore"                       ".gitignore exists"
-assert_file "README.md"                        "README.md exists"
-assert_dir  "docs"                             "docs/ directory exists"
+assert_file ".github/README.md"                ".github/README.md exists"
+assert_dir  ".github/docs"                     ".github/docs/ directory exists"
 
 for doc in 01-getting-started 02-creating-projects 03-build-and-flash \
            04-boards 05-vscode 06-project-structure 07-command-reference; do
-    assert_file "docs/${doc}.md" "docs/${doc}.md exists"
+    assert_file ".github/docs/${doc}.md" ".github/docs/${doc}.md exists"
 done
 
 # ── Section 2: Board configs ──────────────────────────────────────────────────

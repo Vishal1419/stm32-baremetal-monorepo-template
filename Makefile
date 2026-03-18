@@ -49,6 +49,24 @@ all: build
 ###############################################################################
 init:
 	git submodule update --init --recursive
+	@if [ ! -f README.md ]; then \
+	    echo ""; \
+	    echo "==> Creating README.md..."; \
+	    { \
+	        echo "# $$(basename $$(pwd))"; \
+	        echo ""; \
+	        echo "This project was created using [stm32-baremetal-monorepo-template](https://github.com/Vishal1419/stm32-baremetal-monorepo-template)."; \
+	        echo ""; \
+	        echo "## About"; \
+	        echo ""; \
+	        echo "Describe your project here."; \
+	        echo ""; \
+	        echo "## Getting started"; \
+	        echo ""; \
+	        echo "See [template documentation](.github/docs/01-getting-started.md) for setup instructions."; \
+	    } > README.md; \
+	    echo "v  README.md created. Edit it to describe your project."; \
+	fi
 	git config core.hooksPath .githooks
 	@echo "==> Git hooks configured (.githooks/pre-commit active)"
 
