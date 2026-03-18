@@ -61,9 +61,14 @@ init:
 	        echo ""; \
 	        echo "Describe your project here."; \
 	        echo ""; \
+	        echo "## Documentation"; \
+	        echo ""; \
+	        echo "Template documentation is available at:"; \
+	        echo "https://github.com/Vishal1419/stm32-baremetal-monorepo-template/tree/main/.github/docs"; \
+	        echo ""; \
 	        echo "## Getting started"; \
 	        echo ""; \
-	        echo "See [template documentation](.github/docs/01-getting-started.md) for setup instructions."; \
+	        echo "See [Getting Started](https://github.com/Vishal1419/stm32-baremetal-monorepo-template/blob/main/.github/docs/01-getting-started.md) for setup instructions."; \
 	    } > README.md; \
 	    echo "v  README.md created. Edit it to describe your project."; \
 	fi
