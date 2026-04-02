@@ -90,6 +90,9 @@ SHARED_SRCS  :=
 LIBS   :=
 SHARED :=
 
+rwildcard = $(wildcard $(1)/$(2)) \
+            $(foreach d,$(wildcard $(1)/*/),$(call rwildcard,$(d:/=),$(2)))
+
 -include libs.mk
 
 TGT_CPPFLAGS  += $(foreach _L,$(LIBS),-I$(word 1,$(subst :, ,$(_L)))/include)
@@ -105,9 +108,6 @@ TGT_CPPFLAGS += $(foreach _S,$(SHARED),-I$(_S)/inc -I$(_S)/src)
 SHARED_SRCS  += $(foreach _S,$(SHARED),$(call rwildcard,$(_S)/src,*.c))
 
 # -- Sources --
-rwildcard = $(wildcard $(1)/$(2)) \
-            $(foreach d,$(wildcard $(1)/*/),$(call rwildcard,$(d:/=),$(2)))
-
 C_SRCS   := $(call rwildcard,$(SRC_DIR),*.c)
 CPP_SRCS := $(call rwildcard,$(SRC_DIR),*.cpp)
 CXX_SRCS := $(call rwildcard,$(SRC_DIR),*.cxx)
