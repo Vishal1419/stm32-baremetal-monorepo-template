@@ -1,0 +1,33 @@
+/* Left align display math blocks */
+.katex-display {
+  text-align: left !important;
+}
+
+/* Make katex-html a flex row */
+.katex-html {
+  display: flex !important;
+  align-items: center !important;
+  width: 100%;
+}
+
+/* Equation stays left, no grow */
+.katex-html > .base {
+  flex: 0 0 auto;
+}
+
+/* Tag sits on the right */
+.katex-html > .tag {
+  margin-left: auto;
+  flex: 0 0 auto;
+  position: static !important;
+}
+
+/* Line between equation and tag */
+.katex-html > .tag::before {
+  content: '';
+  display: inline-block;
+  width: 100px;
+  border-top: 1px solid currentColor;
+  vertical-align: middle;
+  margin-right: 10px;
+}

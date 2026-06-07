@@ -456,13 +456,53 @@ if not os.path.exists(settings_path):
             "*.mk":   "makefile",
             ".board": "plaintext",
         },
+        "markdown.styles": [
+            os.path.join(root, ".vscode", "markdown.css")
+        ],
     }
     with open(settings_path, "w") as f:
         json.dump(settings, f, indent=4)
         f.write("\n")
     print("==> Created .vscode/settings.json with detected tool paths")
 else:
-    print("==> Skipped .vscode/settings.json (already exists -- preserving your paths)")
+    # Merge markdown.styles into existing root settings.json
+    with open(settings_path, "r") as f:
+        existing = json.load(f)
+    existing["markdown.styles"] = [os.path.join(root, ".vscode", "markdown.css")]
+    with open(settings_path, "w") as f:
+        json.dump(existing, f, indent=4)
+        f.write("\n")
+    print("==> Updated .vscode/settings.json (markdown.styles)")
+
+# -- settings.json for each subproject (markdown.styles absolute path) --------
+all_sub_projects = (
+    [app["name"] for app in apps] +
+    ts_apps +
+    shared_apps +
+    [sh["name"] for sh in bs_shared_apps]
+)
+for sub in all_sub_projects:
+    sub_vscode = os.path.join(root, sub, ".vscode")
+    os.makedirs(sub_vscode, exist_ok=True)
+    sub_settings_path = os.path.join(sub_vscode, "settings.json")
+    if not os.path.exists(sub_settings_path):
+        sub_settings = {
+            "markdown.styles": [
+                os.path.join(root, ".vscode", "markdown.css")
+            ],
+        }
+        with open(sub_settings_path, "w") as f:
+            json.dump(sub_settings, f, indent=4)
+            f.write("\n")
+        print(f"==> Created {sub}/.vscode/settings.json (markdown.styles)")
+    else:
+        with open(sub_settings_path, "r") as f:
+            existing = json.load(f)
+        existing["markdown.styles"] = [os.path.join(root, ".vscode", "markdown.css")]
+        with open(sub_settings_path, "w") as f:
+            json.dump(existing, f, indent=4)
+            f.write("\n")
+        print(f"==> Updated {sub}/.vscode/settings.json (markdown.styles)")
 
 print("==> VSCode configs regenerated successfully.")
 print("    Run 'make vscode' again after any board.mk or .board change.")
