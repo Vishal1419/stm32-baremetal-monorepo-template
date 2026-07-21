@@ -288,11 +288,11 @@ for app in apps:
     config = {
         "name": app["name"],
         "includePath": [
-            "${workspaceFolder}/src/**",
+            "${workspaceFolder}/src",
             "${workspaceFolder}/submodules/libopencm3/include",
             f"${{workspaceFolder}}/submodules/libopencm3/include/libopencm3/stm32/{family_leaf}",
         ] + [
-            f"${{workspaceFolder}}/../{s}/src/**" for s in app["shared_paths"]
+            f"${{workspaceFolder}}/../{s}/src" for s in app["shared_paths"]
         ] + [
             f"${{workspaceFolder}}/../{s}/inc" for s in app["shared_paths"]
         ],
@@ -319,11 +319,11 @@ for app in apps:
     root_configs.append({
         "name": app["name"],
         "includePath": [
-            f"${{workspaceFolder}}/{app['name']}/src/**",
+            f"${{workspaceFolder}}/{app['name']}/src",
             f"${{workspaceFolder}}/{app['name']}/submodules/libopencm3/include",
             f"${{workspaceFolder}}/{app['name']}/submodules/libopencm3/include/libopencm3/stm32/{family_leaf}",
         ] + [
-            f"${{workspaceFolder}}/{s}/src/**" for s in app["shared_paths"]
+            f"${{workspaceFolder}}/{s}/src" for s in app["shared_paths"]
         ] + [
             f"${{workspaceFolder}}/{s}/inc" for s in app["shared_paths"]
         ],
@@ -392,7 +392,7 @@ for sh in shared_apps:
 
     # shims/ must come before libopencm3/include so shim headers
     # intercept #include <libopencm3/stm32/i2c.h> etc.
-    sh_include_path = ["${workspaceFolder}/src/**", "${workspaceFolder}/inc"]
+    sh_include_path = ["${workspaceFolder}/src", "${workspaceFolder}/inc"]
     shims_dir = os.path.join(root, sh, "shims")
     if os.path.isdir(shims_dir):
         sh_include_path.append("${workspaceFolder}/shims")
@@ -424,7 +424,7 @@ for sh in bs_shared_apps:
     sh_config = {
         "name": sh["name"],
         "includePath": [
-            "${workspaceFolder}/src/**",
+            "${workspaceFolder}/src",
             "${workspaceFolder}/inc",
             "${workspaceFolder}/submodules/libopencm3/include",
             f"${{workspaceFolder}}/submodules/libopencm3/include/libopencm3/stm32/{family_leaf}",

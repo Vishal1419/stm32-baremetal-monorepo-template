@@ -113,10 +113,14 @@ CPP_SRCS := $(call rwildcard,$(SRC_DIR),*.cpp)
 CXX_SRCS := $(call rwildcard,$(SRC_DIR),*.cxx)
 ASM_SRCS := $(call rwildcard,$(SRC_DIR),*.S)
 
-# Include path: src/ itself and all subdirectories (headers live beside .c files)
-SRC_SUBDIRS  = $(sort $(dir $(call rwildcard,$(SRC_DIR),*.c) \
-                             $(call rwildcard,$(SRC_DIR),*.h)))
-TGT_CPPFLAGS += $(addprefix -I,$(SRC_SUBDIRS))
+# Include path: src/ root only. Same-directory includes resolve via the
+# compiler's default "search alongside the including file" rule, and
+# parent-relative includes (e.g. #include "../executor/executor.h") work
+# via normal filesystem-relative path resolution. Cross-directory includes
+# from elsewhere must be written relative to src/, e.g. #include "comm/uart.h".
+# This is intentional: it prevents bare-filename collisions across
+# subdirectories (e.g. motion/uart.h silently shadowing comm/uart.h).
+TGT_CPPFLAGS += -I$(SRC_DIR)
 
 
 # Object files: app sources -> build/app/, shared sources -> build/shared/
