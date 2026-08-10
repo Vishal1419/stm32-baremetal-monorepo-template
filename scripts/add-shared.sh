@@ -24,10 +24,18 @@ if [ -z "$APP" ] || [ -z "$SHARED" ]; then
     fi
     ask_choice APP "Select app or shared library" "${APPS[@]}"
 
+    SHARED_LIBS_ALL=()
+    read_array SHARED_LIBS_ALL list_shared_all "$ROOT"
+    # Exclude APP itself -- a shared library can't depend on itself, so
+    # don't even offer it as a choice (rather than let the picker allow it
+    # and rely on the later validation check to reject it).
     SHARED_LIBS=()
-    read_array SHARED_LIBS list_shared_all "$ROOT"
+    for lib in "${SHARED_LIBS_ALL[@]+"${SHARED_LIBS_ALL[@]}"}"; do
+        [ "$lib" = "$APP" ] && continue
+        SHARED_LIBS+=("$lib")
+    done
     if [ "${#SHARED_LIBS[@]}" -eq 0 ]; then
-        echo "ERROR: No shared libraries found. Create one with: make new-app"
+        echo "ERROR: No other shared libraries found to depend on. Create one with: make new-app"
         exit 1
     fi
     ask_choice SHARED "Select shared library to depend on" "${SHARED_LIBS[@]}"
@@ -119,3 +127,6 @@ fi
 
 printf '\nSHARED += ../%s\n' "$SHARED" >> "$LIBS_MK"
 echo "v  Shared library '$SHARED' linked into '$APP'."
+
+echo "==> Regenerating VSCode configs..."
+bash "$ROOT/scripts/gen-vscode.sh"
