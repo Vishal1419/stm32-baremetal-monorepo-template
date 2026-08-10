@@ -539,7 +539,128 @@ section "prompt.sh list helpers"
     esac
 )
 
-# ── Summary ───────────────────────────────────────────────────────────────────
+# ── Section 19: add-shared.sh auto-regenerates VSCode configs ─────────────────
+section "add-shared.sh auto-regenerates VSCode configs"
+
+# A fresh pair, unconnected to anything else, so this section's outcome
+# doesn't depend on state left over from earlier sections.
+mkdir -p test_auto_a/src test_auto_a/inc test_auto_b/src test_auto_b/inc
+touch test_auto_a/src/.gitkeep test_auto_a/inc/.gitkeep
+touch test_auto_b/src/.gitkeep test_auto_b/inc/.gitkeep
+cp scripts/templates/libs.mk test_auto_a/libs.mk
+cp scripts/templates/libs.mk test_auto_b/libs.mk
+bash scripts/gen-vscode.sh --workspace-only > /dev/null 2>&1
+
+# Before linking, test_auto_a's own config should not yet mention test_auto_b.
+bash scripts/gen-vscode.sh > /dev/null 2>&1
+if [ -f "test_auto_a/.vscode/c_cpp_properties.json" ] && \
+   ! grep -qF "test_auto_b" "test_auto_a/.vscode/c_cpp_properties.json"; then
+    pass "baseline: test_auto_a config does not yet reference test_auto_b"
+else
+    fail "baseline: test_auto_a config should not reference test_auto_b yet"
+fi
+
+# Link WITHOUT a separate 'make vscode' call afterward.
+assert_exits_ok \
+    "bash scripts/add-shared.sh test_auto_a test_auto_b 2>/dev/null" \
+    "add-shared succeeds"
+
+assert_contains "test_auto_a/.vscode/c_cpp_properties.json" "test_auto_b/inc" \
+    "config updated automatically -- no separate make vscode needed"
+
+# -- Already-registered path should NOT trigger a regen (nothing changed) --
+rm -f "test_auto_a/.vscode/c_cpp_properties.json"
+assert_exits_ok \
+    "bash scripts/add-shared.sh test_auto_a test_auto_b 2>/dev/null" \
+    "re-linking an already-registered dependency is a no-op"
+[ ! -f "test_auto_a/.vscode/c_cpp_properties.json" ] \
+    && pass "no-op path does not regenerate configs" \
+    || fail "no-op path should not have regenerated configs"
+
+# ── Section 20: add-shared.sh interactive picker excludes self ────────────────
+section "add-shared.sh picker excludes self from SHARED options"
+
+mkdir -p test_picker_a/src test_picker_a/inc test_picker_b/src test_picker_b/inc
+touch test_picker_a/src/.gitkeep test_picker_a/inc/.gitkeep
+touch test_picker_b/src/.gitkeep test_picker_b/inc/.gitkeep
+cp scripts/templates/libs.mk test_picker_a/libs.mk
+cp scripts/templates/libs.mk test_picker_b/libs.mk
+
+# ask_choice matches a typed value directly (not just by number), so this
+# works regardless of how many options are in the menu or what order they're
+# in -- pick test_picker_a as the consumer, then deliberately type
+# test_picker_a's own name for the dependency (should be rejected as an
+# invalid choice, since it was excluded from the options), then correct to
+# test_picker_b.
+printf "test_picker_a\ntest_picker_a\ntest_picker_b\n" > /tmp/picker_input
+
+assert_exits_ok \
+    "bash scripts/add-shared.sh < /tmp/picker_input" \
+    "picker eventually succeeds after a rejected self-selection"
+
+grep -q "invalid" /tmp/test_out \
+    && pass "typing own name for SHARED is rejected as an invalid choice" \
+    || fail "expected an 'invalid' rejection when typing own name"
+
+assert_contains "test_picker_a/libs.mk" "test_picker_b" \
+    "libs.mk ends up with the corrected (non-self) dependency"
+
+grep -qF "SHARED += ../test_picker_a" "test_picker_a/libs.mk" \
+    && fail "libs.mk should never contain a self-referencing SHARED entry" \
+    || pass "libs.mk never got a self-referencing SHARED entry"
+
+# ── Section 21: remove-app.sh ──────────────────────────────────────────────────
+section "remove-app.sh"
+
+# -- Reserved name: should fail immediately --
+assert_exits_err \
+    "bash scripts/remove-app.sh scripts 2>/dev/null" \
+    "remove-app rejects a reserved name"
+
+# -- Nonexistent project: should fail --
+assert_exits_err \
+    "bash scripts/remove-app.sh does_not_exist 2>/dev/null" \
+    "remove-app rejects a nonexistent project"
+
+# -- Still depended on: should fail --
+# test_shared_y depends on test_shared_z (Section 17) -- removing
+# test_shared_z should be blocked.
+assert_exits_err \
+    "bash scripts/remove-app.sh test_shared_z 2>/dev/null" \
+    "remove-app rejects a project that is still depended on"
+[ -d "test_shared_z" ] && pass "blocked removal leaves the directory intact" \
+    || fail "test_shared_z should not have been removed"
+
+# -- Clean removal: a disposable project with no dependents --
+mkdir -p test_removeme/src test_removeme/inc
+touch test_removeme/src/.gitkeep test_removeme/inc/.gitkeep
+cp scripts/templates/libs.mk test_removeme/libs.mk
+bash scripts/gen-vscode.sh --workspace-only > /dev/null 2>&1
+
+WORKSPACE_FILE="$(basename "$TEST_DIR").code-workspace"
+assert_contains "$WORKSPACE_FILE" "test_removeme" \
+    "workspace references test_removeme before removal"
+
+assert_exits_ok \
+    "bash scripts/remove-app.sh test_removeme 2>/dev/null" \
+    "remove-app removes an unused project"
+[ ! -d "test_removeme" ] && pass "project directory deleted" \
+    || fail "project directory still exists after removal"
+
+! grep -qF "test_removeme" "$WORKSPACE_FILE" \
+    && pass "workspace no longer references removed project (auto-regenerated)" \
+    || fail "workspace should no longer reference test_removeme"
+
+# -- Submodule deregistration: not exercised here --
+# Every fixture in this suite uses stub_libopencm3() (plain directories/
+# files) rather than a real 'git submodule add', the same network-free
+# constraint the rest of this suite already works around (see Section 4's
+# comment). remove-app.sh's .gitmodules/.git/modules cleanup path therefore
+# has no real submodule fixture to exercise here; verify it manually against
+# a project created via the real (non-stubbed) 'make new-app' flow.
+skip "remove-app.sh submodule deregistration (no real git submodule fixture in this suite)"
+
+
 echo ""
 echo "─────────────────────────────────────────"
 TOTAL=$((PASS + FAIL + SKIP))
