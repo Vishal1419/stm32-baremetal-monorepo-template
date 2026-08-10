@@ -178,6 +178,16 @@ shared)
             echo "==> Generating libopencm3 shims..."
             bash "$ROOT/scripts/gen-shims.sh" "$ROOT/$NAME"
             echo "v  Shims generated at $NAME/shims/"
+        else
+            # No libopencm3 submodule for this project -- the copied
+            # libs.mk template unconditionally hardcodes a LIBS +=
+            # entry for it, which would reference a directory that
+            # was never created. Strip it (two separate sed passes --
+            # combining the delete and squeeze into one -e script
+            # silently skips the deletion).
+            sed -i.bak '/^# libopencm3$/,/^LIBS += submodules\/libopencm3/d' "$ROOT/$NAME/libs.mk"
+            sed -i.bak '/^$/N;/^\n$/D' "$ROOT/$NAME/libs.mk"
+            rm -f "$ROOT/$NAME/libs.mk.bak"
         fi
 
         bash "$ROOT/scripts/gen-vscode.sh" --workspace-only
