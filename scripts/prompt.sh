@@ -138,6 +138,19 @@ list_shared_all() {
     list_board_shared "$_root"
 }
 
+# list_ts ROOT
+# Prints one TypeScript sub-project name per line (package.json, no .board).
+list_ts() {
+    local _root="$1"
+    for d in "$_root"/*/; do
+        local dname
+        dname="$(basename "$d")"
+        if [ -f "$d/package.json" ] && [ ! -f "$d/.board" ]; then
+            printf '%s\n' "$dname"
+        fi
+    done
+}
+
 # list_consumers ROOT
 # Prints every valid add-shared.sh consumer name per line: C apps plus
 # every shared lib (agnostic and board-specific). A shared lib can depend
@@ -145,6 +158,16 @@ list_shared_all() {
 list_consumers() {
     local _root="$1"
     list_apps "$_root"
+    list_shared_all "$_root"
+}
+
+# list_removable ROOT
+# Prints every valid make remove-app target per line: C apps, TS apps, and
+# every shared lib (agnostic and board-specific).
+list_removable() {
+    local _root="$1"
+    list_apps "$_root"
+    list_ts "$_root"
     list_shared_all "$_root"
 }
 

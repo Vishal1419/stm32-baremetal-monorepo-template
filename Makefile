@@ -10,6 +10,7 @@
 #  make change-board [APP=<appname> BOARD=nucleo_g474re]
 #  make add-board [BOARD=... MCU_FAMILY=... ARCH=... FLASH_BASE=... ...]
 #  make remove-board [BOARD=nucleo_h743zi]
+#  make remove-app [APP=<name>]
 #
 #  make build [APP=<appname>]
 #  make clean [APP=<appname>]
@@ -39,7 +40,7 @@ SHARED_LIBS := $(foreach d,$(wildcard */),\
                 $(if $(wildcard $(d)package.json),,$(d:/=)))),))
 
 .PHONY: all init new-app add-shared change-board \
-        add-board remove-board build clean flash vscode list-apps \
+        add-board remove-board remove-app build clean flash vscode list-apps \
         add-upstream upstream-sync
 
 all: build
@@ -207,6 +208,16 @@ else
 endif
 
 ###############################################################################
+# remove-app
+###############################################################################
+remove-app:
+ifdef APP
+	@bash scripts/remove-app.sh "$(APP)"
+else
+	@bash scripts/remove-app.sh
+endif
+
+###############################################################################
 # build
 ###############################################################################
 ifdef APP
@@ -309,3 +320,4 @@ list-apps:
 	    fi; \
 	done
 	@echo ""
+	
