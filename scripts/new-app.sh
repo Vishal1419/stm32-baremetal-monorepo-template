@@ -93,11 +93,11 @@ CEOF
         bash "$ROOT/scripts/add-shared.sh" "$APP" "$SHARED"
     fi
 
-    bash "$ROOT/scripts/gen-vscode.sh" --workspace-only
+    bash "$ROOT/scripts/gen-vscode.sh"
 
     echo ""
     echo "v  C app '$APP' created  (board: $BOARD)"
-    echo "   Next: make vscode && make build APP=$APP"
+    echo "   Next: make build APP=$APP"
     ;;
 
 # ── Shared C library ────────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ shared)
         git submodule update --init "$NAME/submodules/libopencm3"
         echo "v  libopencm3 submodule added to $NAME/"
 
-        bash "$ROOT/scripts/gen-vscode.sh" --workspace-only
+        bash "$ROOT/scripts/gen-vscode.sh"
 
         echo ""
         echo "v  Board-specific shared library '$NAME' created (board: $BOARD)."
@@ -190,7 +190,7 @@ shared)
             rm -f "$ROOT/$NAME/libs.mk.bak"
         fi
 
-        bash "$ROOT/scripts/gen-vscode.sh" --workspace-only
+        bash "$ROOT/scripts/gen-vscode.sh"
 
         echo ""
         echo "v  Shared library '$NAME' created."
@@ -276,7 +276,7 @@ TSEOF
     cd "$APP_DIR" && npm install --silent
     cd "$ROOT"
 
-    bash "$ROOT/scripts/gen-vscode.sh" --workspace-only
+    bash "$ROOT/scripts/gen-vscode.sh"
 
     echo ""
     echo "v  TypeScript app '$APP' created."
