@@ -401,6 +401,144 @@ assert_contains ".gitignore" "*/.vscode/"      ".gitignore ignores per-app .vsco
 assert_contains ".gitignore" "node_modules"    ".gitignore ignores node_modules"
 grep -qF "**/submodules/*/lib/" ".gitignore" && pass ".gitignore ignores compiled libs" || fail ".gitignore ignores compiled libs"
 
+# ── Section 16: add-shared.sh -- shared-to-shared dependencies ────────────────
+section "add-shared.sh shared-to-shared dependencies"
+
+# Fresh board-agnostic shared libs for this section, each with libs.mk
+# (new-app.sh now copies this in for every new shared lib -- see Section 5/6
+# for libs created the way the template used to, before that change).
+for lib in test_shared_x test_shared_y test_shared_z test_shared_nolm; do
+    mkdir -p "$lib/src" "$lib/inc"
+    touch "$lib/src/.gitkeep" "$lib/inc/.gitkeep"
+done
+cp scripts/templates/libs.mk test_shared_x/libs.mk
+cp scripts/templates/libs.mk test_shared_y/libs.mk
+cp scripts/templates/libs.mk test_shared_z/libs.mk
+# test_shared_nolm deliberately has NO libs.mk -- simulates a shared lib
+# created before this feature existed.
+
+# -- Agnostic depending on agnostic: should succeed --
+assert_exits_ok \
+    "bash scripts/add-shared.sh test_shared_x test_shared_y 2>/dev/null" \
+    "agnostic shared lib can depend on another agnostic shared lib"
+assert_contains "test_shared_x/libs.mk" "test_shared_y" \
+    "libs.mk updated with agnostic-to-agnostic dependency"
+
+# -- Self-dependency: should fail --
+assert_exits_err \
+    "bash scripts/add-shared.sh test_shared_x test_shared_x 2>/dev/null" \
+    "add-shared rejects a library depending on itself"
+
+# -- Agnostic depending on board-specific: hard blocked, regardless of board --
+assert_exits_err \
+    "bash scripts/add-shared.sh test_shared_x test_bs_shared_f7 2>/dev/null" \
+    "agnostic shared lib cannot depend on a board-specific one"
+
+# -- Board-specific depending on board-specific, matching board: should succeed --
+# test_bs_shared_f7 (Section 8) was only ever used as a dependency target
+# before now, so it never got its own libs.mk -- needs one to act as a
+# consumer here.
+cp scripts/templates/libs.mk test_bs_shared_f7/libs.mk
+
+mkdir -p test_bs_shared_f7_dep/src test_bs_shared_f7_dep/inc
+echo "nucleo_f767zi" > test_bs_shared_f7_dep/.board
+stub_libopencm3 "test_bs_shared_f7_dep/submodules/libopencm3"
+cp scripts/templates/libs.mk test_bs_shared_f7_dep/libs.mk
+
+assert_exits_ok \
+    "bash scripts/add-shared.sh test_bs_shared_f7 test_bs_shared_f7_dep 2>/dev/null" \
+    "board-specific lib can depend on another lib on the same board"
+assert_contains "test_bs_shared_f7/libs.mk" "test_bs_shared_f7_dep" \
+    "libs.mk updated with matching-board dependency"
+
+# -- Board-specific depending on board-specific, mismatched board: should fail --
+# test_bs_shared_f7 is nucleo_f767zi, test_bs_shared is nucleo_g474re
+assert_exits_err \
+    "bash scripts/add-shared.sh test_bs_shared_f7 test_bs_shared 2>/dev/null" \
+    "board-specific lib cannot depend on one targeting a different board"
+
+# -- Consumer missing libs.mk: should fail with a clear, actionable message --
+assert_exits_err \
+    "bash scripts/add-shared.sh test_shared_nolm test_shared_y 2>/dev/null" \
+    "add-shared rejects a consumer with no libs.mk"
+grep -q "libs.mk copied in manually" /tmp/test_out \
+    && pass "missing-libs.mk error explains the manual fix" \
+    || fail "missing-libs.mk error should explain the manual fix"
+
+# ── Section 17: gen-vscode.sh -- transitive SHARED resolution ─────────────────
+section "gen-vscode.sh transitive SHARED resolution"
+
+# Extend the chain from Section 16: test_shared_x -> test_shared_y already
+# linked. Add test_shared_y -> test_shared_z, then link test_robot ->
+# test_shared_x, giving a 3-hop chain: test_robot -> x -> y -> z.
+assert_exits_ok \
+    "bash scripts/add-shared.sh test_shared_y test_shared_z 2>/dev/null" \
+    "second hop of the dependency chain links successfully"
+assert_exits_ok \
+    "bash scripts/add-shared.sh test_robot test_shared_x 2>/dev/null" \
+    "C app links the head of the dependency chain"
+
+assert_exits_ok "make vscode 2>/dev/null" "make vscode runs with a multi-hop SHARED chain"
+
+# test_robot only directly depends on test_shared_x, but should still see
+# test_shared_y (2 hops) and test_shared_z (3 hops) in its includePath.
+assert_contains "test_robot/.vscode/c_cpp_properties.json" "test_shared_x/inc" \
+    "app config includes direct (1-hop) dependency"
+assert_contains "test_robot/.vscode/c_cpp_properties.json" "test_shared_y/inc" \
+    "app config includes transitive (2-hop) dependency"
+assert_contains "test_robot/.vscode/c_cpp_properties.json" "test_shared_z/inc" \
+    "app config includes transitive (3-hop) dependency"
+
+# A shared library's own config should also resolve its transitive deps.
+assert_contains "test_shared_x/.vscode/c_cpp_properties.json" "test_shared_z/inc" \
+    "shared lib's own config includes its transitive dependency"
+
+# libopencm3 must never propagate across a SHARED boundary: test_robot should
+# see exactly one libopencm3 include path (its own), not one per linked
+# shared lib, even though several in the chain have their own submodule.
+LIBOPENCM3_COUNT="$(grep -c 'submodules/libopencm3/include"' test_robot/.vscode/c_cpp_properties.json || true)"
+[ "$LIBOPENCM3_COUNT" -eq 1 ] && pass "libopencm3 path does not propagate across SHARED deps" \
+    || fail "expected exactly 1 libopencm3 include path in test_robot's config, found $LIBOPENCM3_COUNT"
+
+# ── Section 18: prompt.sh -- new list helpers ──────────────────────────────────
+section "prompt.sh list helpers"
+
+(
+    source scripts/prompt.sh
+
+    BOARD_SHARED_OUT="$(list_board_shared "$PWD")"
+    case "$BOARD_SHARED_OUT" in
+        *test_bs_shared_f7*) pass "list_board_shared includes a board-specific lib" ;;
+        *)                   fail "list_board_shared missing expected board-specific lib" ;;
+    esac
+    case "$BOARD_SHARED_OUT" in
+        *test_shared_x*) fail "list_board_shared should not include agnostic libs" ;;
+        *)               pass "list_board_shared excludes agnostic libs" ;;
+    esac
+
+    SHARED_ALL_OUT="$(list_shared_all "$PWD")"
+    case "$SHARED_ALL_OUT" in
+        *test_shared_x*) 
+            case "$SHARED_ALL_OUT" in
+                *test_bs_shared_f7*) pass "list_shared_all includes both agnostic and board-specific libs" ;;
+                *)                   fail "list_shared_all missing board-specific lib" ;;
+            esac
+            ;;
+        *) fail "list_shared_all missing agnostic lib" ;;
+    esac
+
+    CONSUMERS_OUT="$(list_consumers "$PWD")"
+    case "$CONSUMERS_OUT" in
+        *test_robot*)
+            case "$CONSUMERS_OUT" in
+                *test_shared_x*) pass "list_consumers includes both C apps and shared libs" ;;
+                *)               fail "list_consumers missing shared lib as valid consumer" ;;
+            esac
+            ;;
+        *) fail "list_consumers missing C app" ;;
+    esac
+)
+
 # ── Summary ───────────────────────────────────────────────────────────────────
 echo ""
 echo "─────────────────────────────────────────"

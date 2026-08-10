@@ -99,6 +99,49 @@ board_var() {
         | tr -d ' \t'
 }
 
+# -- Helper: transitive SHARED-dependency resolution ---------------------------
+# resolve_transitive_shared_names <start_name>
+# Prints one name per line: every shared library reachable by walking
+# <start_name>'s own libs.mk "SHARED += ../X" entries, then X's libs.mk, and
+# so on. Does NOT include <start_name> itself. Cycle-safe (each name visited
+# at most once). Does NOT walk REGISTER_LIB/REGISTER_HEADER_LIB entries
+# (e.g. libopencm3) -- those stay private to the project that declares them,
+# never propagated to consumers, so two projects can pin different versions
+# of the same third-party library with no conflict.
+resolve_transitive_shared_names() {
+    local start="$1"
+    local visited="|"
+    local queue=("$start")
+    local result=()
+
+    while [ "${#queue[@]}" -gt 0 ]; do
+        local current="${queue[0]}"
+        queue=("${queue[@]:1}")
+
+        local libs_mk="$ROOT/$current/libs.mk"
+        [ -f "$libs_mk" ] || continue
+
+        while IFS= read -r line; do
+            case "$line" in
+                SHARED*=*)
+                    local dep
+                    dep="$(echo "$line" | sed 's/.*=[[:space:]]*//' | tr -d ' \t')"
+                    dep="$(echo "$dep" | sed 's|^\.\./||')"
+                    [ -z "$dep" ] && continue
+                    case "$visited" in
+                        *"|$dep|"*) continue ;;
+                    esac
+                    visited="${visited}${dep}|"
+                    result+=("$dep")
+                    queue+=("$dep")
+                    ;;
+            esac
+        done < "$libs_mk"
+    done
+
+    printf '%s\n' "${result[@]+"${result[@]}"}"
+}
+
 # -- Build pipe-delimited app data for Python ---------------------------------
 APP_DATA=""
 for app in "${C_APPS[@]+"${C_APPS[@]}"}"; do
@@ -118,23 +161,15 @@ for app in "${C_APPS[@]+"${C_APPS[@]}"}"; do
     else
         svd_path=""
     fi
-    # Read SHARED entries from libs.mk to add shared library include paths
+    # Transitive SHARED resolution -- direct entries plus everything each of
+    # them (recursively) depends on. All shared libs are flat siblings of
+    # this app, so every dependency name resolves to ../<name>/inc|src
+    # regardless of how many hops away it is.
     shared_paths=""
-    if [ -f "$ROOT/$app/libs.mk" ]; then
-        while IFS= read -r line; do
-            case "$line" in
-                SHARED*=*)
-                    # Extract the path after += or =, e.g. "../shared-comms" -> "shared-comms"
-                    shared_dir="$(echo "$line" | sed 's/.*=[[:space:]]*//' | tr -d ' 	')"
-                    # Strip leading ../
-                    shared_name="$(echo "$shared_dir" | sed 's|^\.\./||')"
-                    if [ -n "$shared_name" ]; then
-                        shared_paths="${shared_paths}:${shared_name}"
-                    fi
-                    ;;
-            esac
-        done < "$ROOT/$app/libs.mk"
-    fi
+    while IFS= read -r dep; do
+        [ -z "$dep" ] && continue
+        shared_paths="${shared_paths}:${dep}"
+    done < <(resolve_transitive_shared_names "$app")
     APP_DATA="${APP_DATA}${app}|${board}|${mcu_def}|${openocd_target}|${svd_path}|${mcu_family}|${shared_paths}
 "
 done
@@ -145,9 +180,15 @@ for ts in "${TS_APPS[@]+"${TS_APPS[@]}"}"; do
 "
 done
 
+# -- Shared lib data, now including each one's own transitive SHARED deps -----
 SHARED_DATA=""
 for sh in "${SHARED_APPS[@]+"${SHARED_APPS[@]}"}"; do
-    SHARED_DATA="${SHARED_DATA}${sh}
+    shared_paths=""
+    while IFS= read -r dep; do
+        [ -z "$dep" ] && continue
+        shared_paths="${shared_paths}:${dep}"
+    done < <(resolve_transitive_shared_names "$sh")
+    SHARED_DATA="${SHARED_DATA}${sh}|${shared_paths}
 "
 done
 
@@ -157,7 +198,12 @@ for sh in "${BS_SHARED_APPS[@]+"${BS_SHARED_APPS[@]}"}"; do
     board_mk="$ROOT/boards/$board/board.mk"
     mcu_family="$(board_var "$board_mk" MCU_FAMILY)"
     mcu_def="$(echo "$mcu_family" | tr '[:lower:]' '[:upper:]' | tr -d '/')"
-    BS_SHARED_DATA="${BS_SHARED_DATA}${sh}|${mcu_def}|${mcu_family}
+    shared_paths=""
+    while IFS= read -r dep; do
+        [ -z "$dep" ] && continue
+        shared_paths="${shared_paths}:${dep}"
+    done < <(resolve_transitive_shared_names "$sh")
+    BS_SHARED_DATA="${BS_SHARED_DATA}${sh}|${mcu_def}|${mcu_family}|${shared_paths}
 "
 done
 
@@ -182,6 +228,19 @@ arm_gdb             = sys.argv[10] if len(sys.argv) > 10 else ""
 openocd             = sys.argv[11] if len(sys.argv) > 11 else ""
 arm_toolchain       = sys.argv[12] if len(sys.argv) > 12 else ""
 
+def shared_include_paths(root, names, prefix="${workspaceFolder}/.."):
+    """For each shared-lib name, add inc/ and/or src/ -- whichever actually
+    exists on disk. Mirrors 'resolve both, whichever is available'."""
+    paths = []
+    for name in names:
+        inc_dir = os.path.join(root, name, "inc")
+        src_dir = os.path.join(root, name, "src")
+        if os.path.isdir(inc_dir):
+            paths.append(f"{prefix}/{name}/inc")
+        if os.path.isdir(src_dir):
+            paths.append(f"{prefix}/{name}/src")
+    return paths
+
 # Parse app data
 apps = []
 for line in app_data_raw.splitlines():
@@ -199,8 +258,18 @@ for line in app_data_raw.splitlines():
         "shared_paths":   [p for p in parts[6].split(":") if p] if len(parts) > 6 else [],
     })
 
-ts_apps     = [l.strip() for l in ts_data_raw.splitlines()     if l.strip()]
-shared_apps = [l.strip() for l in shared_data_raw.splitlines() if l.strip()]
+ts_apps = [l.strip() for l in ts_data_raw.splitlines() if l.strip()]
+
+shared_apps = []
+for line in shared_data_raw.splitlines():
+    line = line.strip()
+    if not line:
+        continue
+    parts = line.split("|")
+    shared_apps.append({
+        "name":         parts[0],
+        "shared_paths": [p for p in parts[1].split(":") if p] if len(parts) > 1 else [],
+    })
 
 bs_shared_apps = []
 for line in bs_shared_data_raw.splitlines():
@@ -209,9 +278,10 @@ for line in bs_shared_data_raw.splitlines():
         continue
     parts = line.split("|")
     bs_shared_apps.append({
-        "name":       parts[0],
-        "mcu_def":    parts[1] if len(parts) > 1 else "",
-        "mcu_family": parts[2] if len(parts) > 2 else "",
+        "name":         parts[0],
+        "mcu_def":      parts[1] if len(parts) > 1 else "",
+        "mcu_family":   parts[2] if len(parts) > 2 else "",
+        "shared_paths": [p for p in parts[3].split(":") if p] if len(parts) > 3 else [],
     })
 
 workspace_file = os.path.join(root, f"{project_name}.code-workspace")
@@ -223,7 +293,7 @@ workspace_file = os.path.join(root, f"{project_name}.code-workspace")
 all_sub_names = (
     [app["name"] for app in apps] +
     ts_apps +
-    shared_apps +
+    [sh["name"] for sh in shared_apps] +
     [sh["name"] for sh in bs_shared_apps]
 )
 
@@ -246,7 +316,7 @@ for app in apps:
 for ts in ts_apps:
     folders.append({"path": ts})
 for sh in shared_apps:
-    folders.append({"path": sh, "name": f"{sh} (shared)"})
+    folders.append({"path": sh["name"], "name": f"{sh['name']} (shared)"})
 for sh in bs_shared_apps:
     folders.append({"path": sh["name"], "name": f"{sh['name']} (board-shared)"})
 
@@ -291,11 +361,7 @@ for app in apps:
             "${workspaceFolder}/src",
             "${workspaceFolder}/submodules/libopencm3/include",
             f"${{workspaceFolder}}/submodules/libopencm3/include/libopencm3/stm32/{family_leaf}",
-        ] + [
-            f"${{workspaceFolder}}/../{s}/src" for s in app["shared_paths"]
-        ] + [
-            f"${{workspaceFolder}}/../{s}/inc" for s in app["shared_paths"]
-        ],
+        ] + shared_include_paths(root, app["shared_paths"]),
         "defines": [app["mcu_def"]],
         "compilerPath": arm_gcc,
         "compilerArgs": [f"-D{app['mcu_def']}"],
@@ -322,11 +388,7 @@ for app in apps:
             f"${{workspaceFolder}}/{app['name']}/src",
             f"${{workspaceFolder}}/{app['name']}/submodules/libopencm3/include",
             f"${{workspaceFolder}}/{app['name']}/submodules/libopencm3/include/libopencm3/stm32/{family_leaf}",
-        ] + [
-            f"${{workspaceFolder}}/{s}/src" for s in app["shared_paths"]
-        ] + [
-            f"${{workspaceFolder}}/{s}/inc" for s in app["shared_paths"]
-        ],
+        ] + shared_include_paths(root, app["shared_paths"], prefix="${workspaceFolder}"),
         "defines": [app["mcu_def"]],
         "compilerPath": arm_gcc,
         "compilerArgs": [f"-D{app['mcu_def']}"],
@@ -383,23 +445,27 @@ with open(os.path.join(vscode, "launch.json"), "w") as f:
 # If a shared library has its own libopencm3 submodule (for IntelliSense only),
 # write a c_cpp_properties.json into its .vscode/ folder.
 # No MCU define is set -- shared code must be family-agnostic.
+# includePath now also resolves this shared lib's own transitive SHARED
+# dependencies (their inc/src), same rule as apps -- but never a dependency's
+# libopencm3, which stays private to the project that declared it.
 for sh in shared_apps:
-    ocm3_inc = os.path.join(root, sh, "submodules", "libopencm3", "include")
-    if not os.path.isdir(ocm3_inc):
-        continue
-    sh_vscode = os.path.join(root, sh, ".vscode")
+    ocm3_inc = os.path.join(root, sh["name"], "submodules", "libopencm3", "include")
+    sh_vscode = os.path.join(root, sh["name"], ".vscode")
     os.makedirs(sh_vscode, exist_ok=True)
 
-    # shims/ must come before libopencm3/include so shim headers
-    # intercept #include <libopencm3/stm32/i2c.h> etc.
     sh_include_path = ["${workspaceFolder}/src", "${workspaceFolder}/inc"]
-    shims_dir = os.path.join(root, sh, "shims")
-    if os.path.isdir(shims_dir):
-        sh_include_path.append("${workspaceFolder}/shims")
-    sh_include_path.append("${workspaceFolder}/submodules/libopencm3/include")
+    sh_include_path += shared_include_paths(root, sh["shared_paths"])
+
+    if os.path.isdir(ocm3_inc):
+        # shims/ must come before libopencm3/include so shim headers
+        # intercept #include <libopencm3/stm32/i2c.h> etc.
+        shims_dir = os.path.join(root, sh["name"], "shims")
+        if os.path.isdir(shims_dir):
+            sh_include_path.append("${workspaceFolder}/shims")
+        sh_include_path.append("${workspaceFolder}/submodules/libopencm3/include")
 
     sh_config = {
-        "name": sh,
+        "name": sh["name"],
         "includePath": sh_include_path,
         "defines": [],
         "compilerPath": arm_gcc,
@@ -410,11 +476,12 @@ for sh in shared_apps:
     with open(os.path.join(sh_vscode, "c_cpp_properties.json"), "w") as f:
         json.dump({"configurations": [sh_config], "version": 4}, f, indent=4)
         f.write("\n")
-    print(f"==> Created {sh}/.vscode/c_cpp_properties.json (libopencm3 IntelliSense)")
+    print(f"==> Updated {sh['name']}/.vscode/c_cpp_properties.json")
 
 # -- c_cpp_properties.json for board-specific shared libraries ----------------
 # These have a .board file so they get the correct MCU define and full
-# libopencm3 dispatch headers -- same as a regular app.
+# libopencm3 dispatch headers -- same as a regular app. Also resolves this
+# library's own transitive SHARED dependencies, same as above.
 for sh in bs_shared_apps:
     if not sh["mcu_def"]:
         continue
@@ -428,7 +495,7 @@ for sh in bs_shared_apps:
             "${workspaceFolder}/inc",
             "${workspaceFolder}/submodules/libopencm3/include",
             f"${{workspaceFolder}}/submodules/libopencm3/include/libopencm3/stm32/{family_leaf}",
-        ],
+        ] + shared_include_paths(root, sh["shared_paths"]),
         "defines": [sh["mcu_def"]],
         "compilerPath": arm_gcc,
         "compilerArgs": [f"-D{sh['mcu_def']}"],
@@ -478,7 +545,7 @@ else:
 all_sub_projects = (
     [app["name"] for app in apps] +
     ts_apps +
-    shared_apps +
+    [sh["name"] for sh in shared_apps] +
     [sh["name"] for sh in bs_shared_apps]
 )
 for sub in all_sub_projects:

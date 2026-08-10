@@ -125,6 +125,7 @@ shared)
     mkdir -p "$ROOT/$NAME/src" "$ROOT/$NAME/inc"
     touch "$ROOT/$NAME/src/.gitkeep"
     touch "$ROOT/$NAME/inc/.gitkeep"
+    cp "$ROOT/scripts/templates/libs.mk" "$ROOT/$NAME/libs.mk"
 
     if [ "$BOARD_SPECIFIC" = "yes" ]; then
         # Board-specific shared lib -- has .board, own libopencm3 submodule, no shims
@@ -150,12 +151,13 @@ shared)
 
         echo ""
         echo "v  Board-specific shared library '$NAME' created (board: $BOARD)."
-        echo "   src/    -- .c and .h files"
-        echo "   inc/    -- public headers"
-        echo "   .board  -- board pointer, do not change manually"
+        echo "   src/     -- .c and .h files"
+        echo "   inc/     -- public headers"
+        echo "   libs.mk  -- SHARED += entries for other shared libs this one depends on"
+        echo "   .board   -- board pointer, do not change manually"
         echo "   submodules/libopencm3/ -- for building and IntelliSense"
         echo "   Note: can only be linked to apps targeting board: $BOARD"
-        echo "   Next: make add-shared  (to link into a C app on $BOARD)"
+        echo "   Next: make add-shared  (to link into a C app on $BOARD, or into another shared library)"
     else
         # Board-agnostic shared lib -- no .board, optional libopencm3 submodule + shims
         ADD_OCM3=""
@@ -182,14 +184,15 @@ shared)
 
         echo ""
         echo "v  Shared library '$NAME' created."
-        echo "   src/ -- .c and .h files (headers beside their .c files)"
-        echo "   inc/ -- public headers included by consuming apps"
+        echo "   src/     -- .c and .h files (headers beside their .c files)"
+        echo "   inc/     -- public headers included by consuming apps"
+        echo "   libs.mk  -- SHARED += entries for other shared libs this one depends on"
         if [ "$ADD_OCM3" = "yes" ]; then
             echo "   submodules/libopencm3/ -- headers for IntelliSense (never built from here)"
             echo "   shims/ -- libopencm3 dispatch shims (committed to git)"
             echo "   Note: do not hardcode MCU family -- injected by app at build time."
         fi
-        echo "   Next: make add-shared  (to link into a C app)"
+        echo "   Next: make add-shared  (to link into a C app, or into another shared library)"
     fi
     ;;
 

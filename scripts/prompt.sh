@@ -93,7 +93,9 @@ list_apps() {
 }
 
 # list_shared ROOT
-# Prints one shared lib name per line
+# Prints one board-agnostic shared lib name per line.
+# Does NOT include board-specific shared libs -- use list_board_shared for those,
+# or list_shared_all for both combined.
 list_shared() {
     local _root="$1"
     local _reserved="boards scripts .vscode"
@@ -108,6 +110,42 @@ list_shared() {
             [ "$is_reserved" -eq 0 ] && printf '%s\n' "$dname"
         fi
     done
+}
+
+# list_board_shared ROOT
+# Prints one board-specific shared lib name per line
+# (src/, .board present, no Makefile).
+list_board_shared() {
+    local _root="$1"
+    for d in "$_root"/*/; do
+        local dname
+        dname="$(basename "$d")"
+        if [ -d "$d/src" ] && [ -f "$d/.board" ] && [ ! -f "$d/Makefile" ]; then
+            printf '%s\n' "$dname"
+        fi
+    done
+}
+
+# list_shared_all ROOT
+# Prints every shared lib name per line -- board-agnostic AND board-specific.
+# Use this wherever a shared lib is being selected as a dependency
+# (add-shared.sh's SHARED prompt); use list_shared alone only where the
+# caller specifically wants agnostic-only (e.g. a board-agnostic lib
+# choosing what it may depend on).
+list_shared_all() {
+    local _root="$1"
+    list_shared "$_root"
+    list_board_shared "$_root"
+}
+
+# list_consumers ROOT
+# Prints every valid add-shared.sh consumer name per line: C apps plus
+# every shared lib (agnostic and board-specific). A shared lib can depend
+# on another shared lib, so it must be selectable as a consumer too.
+list_consumers() {
+    local _root="$1"
+    list_apps "$_root"
+    list_shared_all "$_root"
 }
 
 # read_array ARRAYNAME COMMAND [ARGS...]
