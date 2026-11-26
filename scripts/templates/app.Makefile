@@ -95,6 +95,18 @@ rwildcard = $(wildcard $(1)/$(2)) \
 
 -include libs.mk
 
+# -- Logger configuration ----------------------------------------------------
+# Shared code (core's logger) needs LOGGER_MIN_LEVEL and LOGGER_ENV defined
+# before it is read, but it cannot include a project file itself. So if this
+# project has a logger config, hand it to the compiler up front, for every file.
+# A project can use a different file by setting LOGGER_CONFIG in its libs.mk.
+LOGGER_CONFIG ?= $(SRC_DIR)/logger/logger_config.h
+ifneq ($(wildcard $(LOGGER_CONFIG)),)
+    TGT_CPPFLAGS += -include $(LOGGER_CONFIG)
+else
+		$(info Logger config not found at $(LOGGER_CONFIG) - skipping. Fine if this project does not use the logger.)
+endif
+
 TGT_CPPFLAGS  += $(foreach _L,$(LIBS),-I$(word 1,$(subst :, ,$(_L)))/include)
 # LIB_LDFLAGS is recursive (=) so it expands at link time when LIBS is fully set
 LIB_LDFLAGS    = $(foreach _L,$(LIBS),-L$(word 1,$(subst :, ,$(_L)))/lib -Wl,-L$(word 1,$(subst :, ,$(_L)))/lib)
