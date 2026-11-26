@@ -7,6 +7,7 @@
 #  make new-app TYPE=ts APP=mytools
 #
 #  make add-shared [APP=<appname> SHARED=shared-comms]
+#  make sync-makefiles [CHECK=1]                 -- re-generate every C app's Makefile from the template
 #  make change-board [APP=<appname> BOARD=nucleo_g474re]
 #  make add-board [BOARD=... MCU_FAMILY=... ARCH=... FLASH_BASE=... ...]
 #  make remove-board [BOARD=nucleo_h743zi]
@@ -39,7 +40,7 @@ SHARED_LIBS := $(foreach d,$(wildcard */),\
             $(if $(filter $(d:/=),$(_RESERVED)),,\
                 $(if $(wildcard $(d)package.json),,$(d:/=)))),))
 
-.PHONY: all init new-app add-shared change-board \
+.PHONY: all init new-app add-shared change-board sync-makefiles \
         add-board remove-board remove-app build clean flash vscode list-apps \
         add-upstream upstream-sync
 
@@ -122,6 +123,12 @@ upstream-sync:
 	    echo "After merging, run: bash scripts/test.sh"; \
 	    exit 1 \
 	)
+	@bash scripts/sync-makefiles.sh --check > /dev/null 2>&1 || ( \
+	    echo ""; \
+	    echo "NOTE: some app Makefiles differ from scripts/templates/app.Makefile."; \
+	    echo "      Run 'make sync-makefiles' to update them (check 'git diff' afterwards)."; \
+	    echo "" \
+	)
 	@echo ""
 	@echo "v  Sync complete. Running tests to verify..."
 	@echo ""
@@ -166,6 +173,16 @@ ifdef APP
 	@bash scripts/add-shared.sh "$(APP)" "$(SHARED)"
 else
 	@bash scripts/add-shared.sh
+endif
+
+###############################################################################
+# sync-makefiles  (re-generate every C app's Makefile from the template)
+###############################################################################
+sync-makefiles:
+ifdef CHECK
+	@bash scripts/sync-makefiles.sh --check
+else
+	@bash scripts/sync-makefiles.sh
 endif
 
 ###############################################################################
@@ -320,4 +337,3 @@ list-apps:
 	    fi; \
 	done
 	@echo ""
-	
